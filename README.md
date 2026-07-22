@@ -293,11 +293,11 @@ Statistics sub-module.
 Fixed-point decimal arithmetic.
 
 ```mire
-set d = decimal::int(42)           # 42
-set d = decimal::parse("3.14")     # 3.14
-set f = decimal::float(d)          # 3.14 as f64
-set s = decimal::text(d)           # "3.14"
-set r = decimal::prec(a, b, 6)     # division with 6 decimal places
+set d = decimal::int(42) # 42
+set d = decimal::parse("3.14") # 3.14
+set f = decimal::float(d) # 3.14 as f64
+set s = decimal::text(d) # "3.14"
+set r = decimal::prec(a, b, 6) # division with 6 decimal places
 ```
 
 | Function | Returns | Description |
@@ -619,27 +619,27 @@ Terminal I/O.
 load kioto
 
 pub fn main: () {
-    # HTTP GET
-    set data = net::http::get("https://httpbin.org/get")
+ # HTTP GET
+ set data = net::http::get("https://httpbin.org/get")
 
-    # Parse JSON
-    set origin = json::get(data, "headers.Host")
+ # Parse JSON
+ set origin = json::get(data, "headers.Host")
 
-    # File I/O
-    fs::write("output.txt", origin)
+ # File I/O
+ fs::write("output.txt", origin)
 
-    # String conversion
-    set msg = strings::from::i64(42)
-    log::info("The answer is " + msg)
+ # String conversion
+ set msg = strings::from::i64(42)
+ log::info("The answer is " + msg)
 
-    # Lists with new API
-    set parts = strings::split("a,b,c" ",")
-    set n = lists::len(parts)
-    set first = lists::get::str(parts lists::index(parts "b"))
+ # Lists with new API
+ set parts = strings::split("a,b,c" ",")
+ set n = lists::len(parts)
+ set first = lists::get::str(parts lists::index(parts "b"))
 
-    # Result handling
-    set r = result::ok("done")
-    use dasu(result::unwrap(r))
+ # Result handling
+ set r = result::ok("done")
+ use dasu(result::unwrap(r))
 }
 ```
 
