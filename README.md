@@ -1,6 +1,6 @@
 # kioto — Mire standard library
 
-Version **2.2.0** — [CHANGELOG](CHANGELOG.md)
+Version **2.4.0** — [CHANGELOG](CHANGELOG.md)
 
 Kioto is the core library for the Mire language ecosystem.
 Load the full library with `load kioto`, or load individual modules
@@ -645,4 +645,4 @@ pub fn main: () {
 
 ## Version
 
-**2.2.0** — See [CHANGELOG.md](CHANGELOG.md) for migration guide.
+**2.4.0** — See [CHANGELOG.md](CHANGELOG.md) for migration guide.
