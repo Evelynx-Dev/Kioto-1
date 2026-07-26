@@ -1,0 +1,6 @@
+[package]
+name = "kioto"
+version = "2.4.0"
+compiler = "mire"
+abi = 1
+language = "mire avenys v3.24.3"

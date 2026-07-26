@@ -1,7 +1,5 @@
 module close
-
-extern fn pal_channel_close: (handle :i64) lib "c"
-
-pub fn channel: (ch :i64) {
-    pal_channel_close(ch)
+pub fn channel: (ch :&str) {
+    set c = *ch
+    if fs::exists(c) { use fs::drop(c) }
 }

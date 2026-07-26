@@ -1,18 +1,13 @@
 module async
-load kioto::dicts
 load kioto::async::error
 load kioto::async::check
 load kioto::async::spawn
 load kioto::async::join
+load kioto::async::close
 
 extern fn pal_time_sleep_ms: (ms :i64) lib "c"
 extern fn pal_proc_spawn: (cmd :str) :i64 lib "c"
 extern fn pal_proc_wait: (pid :i64) :i64 lib "c"
-extern fn pal_channel_create: () :i64 lib "c"
-extern fn pal_channel_send: (handle :i64, data :&str) :i64 lib "c"
-extern fn pal_channel_recv: (handle :i64) :str lib "c"
-extern fn pal_channel_close: (handle :i64) lib "c"
-
 pub fn sleep: (ms :i64) { pal_time_sleep_ms(ms) }
 
 pub fn ready: (value :&str) :str { return "done:" + *value }
@@ -30,26 +25,19 @@ pub fn value: (task :&str, fallback :&str) :str {
 pub fn spawn: (cmd :str) :i64 { return pal_proc_spawn(cmd) }
 pub fn wait: (pid :i64) :i64 { return pal_proc_wait(pid) }
 
-pub fn read_fd: (ch :i64) :i64 {
-    return ch >> 32
+pub fn channel: () :str {
+    set stamp = strings::from::i64(time::unix::ms())
+    return "/tmp/mire_chan_" + stamp
 }
 
-pub fn write_fd: (ch :i64) :i64 {
-    return ch & 0xFFFFFFFF
+pub fn send: (ch :&str, msg :&str) {
+    use fs::write(ch msg)
 }
 
-pub fn channel: () :i64 {
-    return pal_channel_create()
-}
-
-pub fn send: (ch :i64, msg :&str) {
-    pal_channel_send(ch msg)
-}
-
-pub fn recv: (ch :i64) :str {
-    return pal_channel_recv(ch)
-}
-
-pub fn close_channel: (ch :i64) {
-    pal_channel_close(ch)
+pub fn recv: (ch :&str) :str {
+    set c = *ch
+    set data = "" :str mut
+    while !fs::exists(c) { async::sleep(10) }
+    set data = fs::read(c)
+    return strings::trim(data)
 }

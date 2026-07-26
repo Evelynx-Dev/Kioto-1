@@ -109,6 +109,8 @@ Filesystem I/O.
 | `name(path)` | `str` | File name from path |
 | `ext(path)` | `str` | File extension |
 | `check::file(path)` | `bool` | True if path is a regular file |
+| `read_bytes(path)` | `vec[i64]` | Read file as byte array |
+| `write_bytes(path, data)` | `mu` | Write byte array to file |
 
 ---
 
@@ -164,7 +166,6 @@ Process management.
 |----------|---------|-------------|
 | `run(cmd, args)` | `i64` | Spawn process (returns pid) |
 | `spawn(cmd, args)` | `i64` | Alias for `run` |
-| `spawn::shell(cmd)` | `i64` | Run via shell (single string) |
 | `capture(cmd, args)` | `str` | Run and capture stdout |
 | `shell(cmd)` | `str` | Run shell command, capture output |
 | `pipe(commands)` | `str` | Pipe commands together |
@@ -293,11 +294,11 @@ Statistics sub-module.
 Fixed-point decimal arithmetic.
 
 ```mire
-set d = decimal::int(42) # 42
-set d = decimal::parse("3.14") # 3.14
-set f = decimal::float(d) # 3.14 as f64
-set s = decimal::text(d) # "3.14"
-set r = decimal::prec(a, b, 6) # division with 6 decimal places
+set d = decimal::int(42)           # 42
+set d = decimal::parse("3.14")     # 3.14
+set f = decimal::float(d)          # 3.14 as f64
+set s = decimal::text(d)           # "3.14"
+set r = decimal::prec(a, b, 6)     # division with 6 decimal places
 ```
 
 | Function | Returns | Description |
@@ -350,6 +351,15 @@ Complex number arithmetic.
 
 Random number generation.
 
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `seed(size)` | `str` | Random hex seed |
+| `u64()` | `i64` | Random unsigned 64-bit integer |
+| `i64()` | `i64` | Random signed 64-bit integer |
+| `f64()` | `f64` | Random float in [0, 1) |
+| `bool()` | `bool` | Random boolean |
+| `range(min, max)` | `i64` | Random integer in [min, max) |
+
 ---
 
 ## async
@@ -361,7 +371,6 @@ Async / concurrency primitives.
 | `sleep(ms)` | `mu` | Sleep for milliseconds |
 | `spawn(cmd)` | `i64` | Spawn process (returns pid) |
 | `wait(pid)` | `i64` | Wait for process |
-| `exists(pid)` | `bool` | Check if process running |
 | `ready(value)` | `str` | Mark task as done (returns `"done:..."`) |
 | `failed(msg)` | `str` | Mark task as failed (returns `"error:..."`) |
 | `pending()` | `str` | Create pending token |
@@ -385,9 +394,7 @@ Command-line argument parsing.
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `args()` | `map[str,str]` | Parsed CLI arguments |
-| `flag(name)` | `str` | Get flag value |
-| `value(name)` | `str` | Get positional value |
+| `parse(raw)` | `map[str,str]` | Parse raw CLI args into key-value map |
 
 ---
 
@@ -556,18 +563,6 @@ WebSocket client and server (RFC 6455).
 
 ---
 
-## env (environment)
-
-| Function | Returns | Description |
-|----------|---------|-------------|
-| `get(key)` | `str` | Get environment variable |
-| `set(key, value)` | `mu` | Set environment variable |
-| `all()` | `map[str, str]` | All environment variables |
-| `cwd()` | `str` | Current working directory |
-| `chdir(path)` | `mu` | Change directory |
-
----
-
 ## log
 
 Logging with formatted output.
@@ -586,9 +581,14 @@ Memory operations.
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `alloc(size)` | `ptr` | Allocate memory |
-| `free(ptr)` | `mu` | Free memory |
-| `size_of(type)` | `i64` | Size of type in bytes |
+| `used()` | `i64` | Used memory in bytes |
+| `total()` | `i64` | Total memory in bytes |
+| `free()` | `i64` | Free memory in bytes |
+| `available()` | `i64` | Available memory in bytes |
+| `percent()` | `f64` | Memory usage percentage |
+| `process()` | `i64` | Current process memory in bytes |
+| `snapshot()` | `map[str,i64]` | Full memory snapshot |
+| `format(bytes)` | `str` | Human-readable memory size |
 
 ---
 
@@ -598,18 +598,20 @@ GPU detection.
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `available()` | `bool` | Check if GPU is available |
+| `snapshot()` | `map[str,i64]` | GPU information snapshot |
 
 ---
 
 ## term
 
-Terminal I/O.
+Terminal styling and output.
 
-| Function | Description |
-|----------|-------------|
-| `print(msg)` | Print to terminal |
-| `read_line()` | `str` | Read a line from terminal |
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `style(text, style_code)` | `str` | Apply ANSI style to text |
+| `hr(ch, len)` | `str` | Horizontal rule |
+| `clear()` | `mu` | Clear terminal |
+| `bar(name, elapsed_ms, phase_ms, total_ms)` | `str` | Progress bar |
 
 ---
 
@@ -619,27 +621,21 @@ Terminal I/O.
 load kioto
 
 pub fn main: () {
- # HTTP GET
- set data = net::http::get("https://httpbin.org/get")
+    // File I/O
+    fs::write("output.txt", "hello from kioto")
 
- # Parse JSON
- set origin = json::get(data, "headers.Host")
+    // String conversion
+    set msg = strings::from::i64(42)
+    log::info("The answer is " + msg)
 
- # File I/O
- fs::write("output.txt", origin)
+    // Lists
+    set parts = strings::split("a,b,c" ",")
+    set n = lists::len(parts)
+    set first = lists::get::str(parts 0)
 
- # String conversion
- set msg = strings::from::i64(42)
- log::info("The answer is " + msg)
-
- # Lists with new API
- set parts = strings::split("a,b,c" ",")
- set n = lists::len(parts)
- set first = lists::get::str(parts lists::index(parts "b"))
-
- # Result handling
- set r = result::ok("done")
- use dasu(result::unwrap(r))
+    // Result handling
+    set r = result::ok("done")
+    use dasu(result::unwrap(r))
 }
 ```
 

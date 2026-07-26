@@ -1,24 +1,22 @@
 module dicts
 load kioto::dicts::check
 
-extern fn rt_dicts_len: (dict :&dict) :i64 lib "c"
-extern fn rt_dicts_keys: (dict :&dict) :vec[str] lib "c"
-extern fn rt_dicts_values: (dict :&dict) :vec[i64] lib "c"
-extern fn rt_dicts_has: (dict :&dict, key :str) :bool lib "c"
-extern fn rt_dicts_get: (dict :&dict, key :str) :str lib "c"
-extern fn rt_dicts_get_i64: (dict :&dict, key :str) :i64 lib "c"
+extern fn rt_dicts_len: (dict) :i64 lib "c"
+extern fn rt_dicts_keys: (dict) :vec[str] lib "c"
+extern fn rt_dicts_values: (dict) :vec[i64] lib "c"
+extern fn rt_dicts_has: (dict, key :str) :bool lib "c"
+extern fn rt_dicts_get: (dict, key :str) :str lib "c"
 extern fn rt_dicts_set: (dict, key :str, value) lib "c"
 extern fn rt_dicts_remove: (dict, key :str) lib "c"
-extern fn rt_dicts_entries: (dict :&dict) :i64 lib "c"
+extern fn rt_dicts_entries: (dict) :i64 lib "c"
 extern fn rt_dicts_merge: (dict, other) lib "c"
 
-pub fn len: (dict :&dict) :i64 { return rt_dicts_len(dict) }
-pub fn keys: (dict :&dict) :vec[str] { return rt_dicts_keys(dict) }
-pub fn values: (dict :&dict) :vec[i64] { return rt_dicts_values(dict) }
-pub fn has: (dict :&dict, key :str) :bool { return rt_dicts_has(dict, key) }
-pub fn get: (dict :&dict, key :str) :str { return rt_dicts_get(dict, key) }
-pub fn get_i64: (dict :&dict, key :str) :i64 { return rt_dicts_get_i64(dict, key) }
+pub fn len: (dict) :i64 { return rt_dicts_len(dict) }
+pub fn keys: (dict) :vec[str] { return rt_dicts_keys(dict) }
+pub fn values: (dict) :vec[i64] { return rt_dicts_values(dict) }
+pub fn has: (dict, key :str) :bool { return rt_dicts_has(dict, key) }
+pub fn get: (dict, key :str) :str { return rt_dicts_get(dict, key) }
 pub fn set: (dict, key :str, value) { rt_dicts_set(dict, key, value) }
 pub fn remove: (dict, key :str) { rt_dicts_remove(dict, key) }
-pub fn count: (dict :&dict) :i64 { return rt_dicts_entries(dict) }
+pub fn count: (dict) :i64 { return rt_dicts_entries(dict) }
 pub fn merge: (dict, other) { rt_dicts_merge(dict, other) }

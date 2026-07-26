@@ -1,7 +1,4 @@
 module gpu
+extern fn pal_gpu_snapshot: () :map[str i64] lib "c"
 
-extern fn pal_gpu_snapshot: () :map[str str] lib "c"
-
-pub fn snapshot: () :map[str str] {
-    return pal_gpu_snapshot()
-}
+pub fn snapshot: () :map[str i64] { return pal_gpu_snapshot() }

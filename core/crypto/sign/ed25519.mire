@@ -9,7 +9,7 @@ extern fn rt_crypto_byte_at: (s :&str, idx :i64) :i64 lib "c"
 extern fn rt_hex_to_file: (path :&str, hex :&str) :bool lib "c"
 
 fn uid: () :str {
-    return strings::from::i64(use! crypto::random::secure::i64() & 0x7FFFFFFFFFFFFFFF)
+    return strings::from::i64(crypto::random::secure::i64() & 0x7FFFFFFFFFFFFFFF)
 }
 
 fn raw_to_hex: (raw :str) :str {
