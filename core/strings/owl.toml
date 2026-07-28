@@ -1,10 +1,3 @@
 [project]
 name = "strings"
 entry = "mod.mire"
-
-[exports]
-conv    = "conv.mire"
-from    = "from.mire"
-pad     = "pad.mire"
-replace = "replace.mire"
-check   = "check.mire"

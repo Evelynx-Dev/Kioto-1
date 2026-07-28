@@ -8,7 +8,7 @@ extern fn rt_lists_push_ptr: (list, value) :list lib "c"
 extern fn rt_lists_pop: (list) :i64 lib "c"
 extern fn rt_lists_get_i64: (list :&list, index :i64) :i64 lib "c"
 extern fn rt_lists_get_ptr: (list :&list, index :i64) lib "c"
-extern fn rt_lists_set_i64: (list :&list, index :i64, value :i64) lib "c"
+extern fn rt_list_set_i64: (list :&list, index :i64, value :i64) lib "c"
 extern fn rt_lists_remove: (list, index :i64) lib "c"
 extern fn rt_lists_clear: (list) lib "c"
 extern fn rt_lists_join_list: (list :&list, sep :&str) :str lib "c"
@@ -32,7 +32,7 @@ pub fn contains: (list :&vec[i64], value :i64) :bool { return rt_lists_contains_
 pub fn first: (list :&list) :i64 { return rt_lists_get_i64(list, 0) }
 pub fn last: (list :&list) :i64 { return rt_lists_get_i64(list, rt_lists_len(list) - 1) }
 pub fn get: (list :&list, index :i64) :i64 { return rt_lists_get_i64(list, index) }
-pub fn set: (list :&list, index :i64, value :i64) { rt_lists_set_i64(list, index, value) }
+pub fn set: (list :&list, index :i64, value :i64) { rt_list_set_i64(list, index, value) }
 pub fn slice: (list :&list, start :i64, end :i64) :vec[i64] { return rt_lists_slice(list, start, end) }
 pub fn concat: (list, other) { rt_lists_concat(list, other) }
 pub fn flatten: (list :&list) :vec[i64] { return rt_lists_flatten(list) }

@@ -1,3 +1,0 @@
-module replace
-extern fn rt_strings_replace_first: (s :&str, old :&str, new :&str) :str lib "c"
-pub fn first: (s :&str, old :&str, new :&str) :str { return rt_strings_replace_first(s, old, new) }

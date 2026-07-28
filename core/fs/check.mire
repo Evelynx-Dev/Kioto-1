@@ -1,3 +1,0 @@
-module check
-extern fn pal_fs_is_file: (path :&str) :bool lib "c"
-pub fn file: (path :&str) :bool { return pal_fs_is_file(*path) }

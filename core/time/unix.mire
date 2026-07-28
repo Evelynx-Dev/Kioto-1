@@ -1,5 +1,0 @@
-module unix
-extern fn pal_time_unix_ms: () :i64 lib "c"
-extern fn pal_time_unix_ns: () :i64 lib "c"
-pub fn ms: () :i64 { return pal_time_unix_ms() }
-pub fn ns: () :i64 { return pal_time_unix_ns() }

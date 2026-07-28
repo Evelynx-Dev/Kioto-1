@@ -1,9 +1,0 @@
-[project]
-name = "http"
-entry = "mod.mire"
-
-[exports]
-req    = "req.mire"
-resp   = "resp.mire"
-server = "server.mire"
-serve  = "serve.mire"

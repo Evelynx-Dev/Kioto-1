@@ -1,6 +1,6 @@
 # kioto — Mire standard library
 
-Version **2.4.0** — [CHANGELOG](CHANGELOG.md)
+Version **2.4.1** — [CHANGELOG](CHANGELOG.md)
 
 Kioto is the core library for the Mire language ecosystem.
 Load the full library with `load kioto`, or load individual modules
@@ -20,22 +20,21 @@ String manipulation. All functions take `&str` borrows and return owned values.
 | `join(parts, sep)` | `str` | Join vec with separator |
 | `contains(s, sub)` | `bool` | Check if substring exists |
 | `index(s, sub)` | `i64` | First index of substring (-1 if not found) |
-| `startswith(s, prefix)` | `bool` | Check prefix |
-| `endswith(s, suffix)` | `bool` | Check suffix |
+| `starts::with(s, prefix)` | `bool` | Check prefix |
+| `ends::with(s, suffix)` | `bool` | Check suffix |
 | `trim(s)` | `str` | Strip whitespace both sides |
 | `ltrim(s)` | `str` | Strip leading whitespace |
 | `rtrim(s)` | `str` | Strip trailing whitespace |
 | `upper(s)` | `str` | To uppercase |
 | `lower(s)` | `str` | To lowercase |
-| `replace(s, old, new)` | `str` | Replace all occurrences |
+| `replace::all(s, old, new)` | `str` | Replace all occurrences |
 | `repeat(s, n)` | `str` | Repeat string n times |
 | `replace::first(s, old, new)` | `str` | Replace first occurrence only |
 | `pad::left(s, w, pad)` | `str` | Left-pad to width w |
 | `pad::right(s, w, pad)` | `str` | Right-pad to width w |
 | `from::i64(v)` | `str` | Convert i64 to string |
-| `conv::i64(s)` | `i64` | Parse string as i64 |
-| `conv::string(v)` | `str` | Alias for `from::i64` |
-| `check::empty(s)` | `bool` | True if string is empty |
+| `to::i64(s)` | `i64` | Parse string as i64 |
+| `is::empty(s)` | `bool` | True if string is empty |
 
 ---
 
@@ -97,64 +96,34 @@ Filesystem I/O.
 | `append(path, data)` | `mu` | Append to file |
 | `exists(path)` | `bool` | Check if path exists |
 | `size(path)` | `i64` | File size in bytes |
-| `copy(src, dst)` | `mu` | Copy file |
-| `move(src, dst)` | `mu` | Move / rename |
 | `drop(path)` | `mu` | Delete file |
-| `list(path)` | `vec[str]` | List directory contents |
-| `walk(path)` | `vec[str]` | Recursive directory traversal |
 | `mkdir(path)` | `mu` | Create directory |
 | `rmdir(path)` | `mu` | Remove directory |
 | `join(a, b)` | `str` | Join path components |
 | `dir(path)` | `str` | Parent directory |
 | `name(path)` | `str` | File name from path |
 | `ext(path)` | `str` | File extension |
-| `check::file(path)` | `bool` | True if path is a regular file |
-| `read_bytes(path)` | `vec[i64]` | Read file as byte array |
-| `write_bytes(path, data)` | `mu` | Write byte array to file |
+| `root_open(path)` | `Root` | Acquire a filesystem root handle |
+| `open(root, path)` | `File` | Open a file under a root |
+| `dir_open(root, path)` | `Dir` | Open a directory under a root |
 
 ---
 
 ## net
 
-TCP networking.
+Low-level TCP resources backed by PAL v4 handles. Higher-level protocols are
+not exposed until they are implemented over these resources without shell,
+TLS, or raw-file-descriptor assumptions.
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `connect(host, port)` | `i64` | Open TCP connection (returns fd) |
-| `send(fd, data)` | `mu` | Send data |
-| `recv(fd, max)` | `str` | Receive up to max bytes |
-| `close(fd)` | `mu` | Close connection |
-| `resolve(host)` | `str` | DNS resolution |
-
-### net::http
-
-HTTP client + server.
-
-| Function | Returns | Description |
-|----------|---------|-------------|
-| `get(url)` | `str` | HTTP GET (supports HTTPS) |
-| `post(url, body, content_type)` | `str` | HTTP POST |
-| `req::method(raw)` | `str` | Parse HTTP method from request |
-| `req::path(raw)` | `str` | Parse path from request |
-| `req::header(raw, name)` | `str` | Parse specific header |
-| `req::body(raw)` | `str` | Parse request body |
-| `req::query(raw)` | `str` | Parse query string |
-| `req::path_only(raw)` | `str` | Path without query string |
-| `resp::success(body, content_type)` | `str` | Build HTTP 200 response |
-| `resp::not_found()` | `str` | Build HTTP 404 response |
-| `resp::redirect(location)` | `str` | Build HTTP 302 response |
-| `server::mime(path)` | `str` | Guess MIME type from extension |
-| `serve::file(fd, path)` | `mu` | Serve a file over HTTP |
-
-### net::event
-
-Non-blocking I/O primitives.
-
-| Function | Returns | Description |
-|----------|---------|-------------|
-| `accept::one(port)` | `i64` | Bind and accept one connection |
-| `has::data(fd)` | `bool` | Check if fd has data ready |
-| `wait(fd, timeout_ms)` | `bool` | Wait for data with timeout |
+| `connect(host, port)` | `Socket` | Open a TCP socket handle |
+| `send(socket, data)` | `i64` | Send bytes |
+| `recv(socket, buffer, max_len)` | `i64` | Receive bytes into a caller-owned buffer |
+| `close(socket)` | `mu` | Release a socket handle |
+| `bind(port)` | `Listener` | Open a listening handle |
+| `accept(listener)` | `Socket` | Accept one connection |
+| `listener_close(listener)` | `mu` | Release a listener handle |
 
 ---
 
@@ -164,18 +133,11 @@ Process management.
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `run(cmd, args)` | `i64` | Spawn process (returns pid) |
-| `spawn(cmd, args)` | `i64` | Alias for `run` |
-| `capture(cmd, args)` | `str` | Run and capture stdout |
-| `shell(cmd)` | `str` | Run shell command, capture output |
-| `pipe(commands)` | `str` | Pipe commands together |
-| `read()` | `str` | Read line from stdin |
-| `write(data)` | `mu` | Print to stdout |
-| `eprint(msg)` | `mu` | Print to stderr |
-| `exit(code)` | `mu` | Exit process |
-| `kill(pid)` | `mu` | Kill process |
-| `wait(pid)` | `i64` | Wait for process to finish |
-| `exists(pid)` | `bool` | Check if process is running |
+| `create(cmd, args, flags, ...)` | `Process` | Spawn with an explicit argv and channel handles |
+| `spawn(cmd, args)` | `i64` | Spawn, wait, and return the exit code |
+| `wait(process)` | `i64` | Wait for a process handle |
+| `kill(process)` | `bool` | Kill a process handle |
+| `close(process)` | `mu` | Release a process handle |
 
 ---
 
@@ -195,34 +157,22 @@ Environment access.
 
 ## time
 
-Wall-clock and monotonic time.
+Host time queries supplied by PAL.
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `unix::ms()` | `i64` | Unix timestamp in milliseconds |
-| `unix::ns()` | `i64` | Unix timestamp in nanoseconds |
-| `elapsed::ns(start)` | `i64` | Nanoseconds elapsed since mark |
-| `elapsed(start)` | `i64` | Milliseconds elapsed (alias) |
-| `mark()` | `i64` | Take a timestamp mark |
+| `now_ms()` | `i64` | Current host time in milliseconds |
+| `now_ns()` | `i64` | Current host time in nanoseconds |
+| `mark()` | `i64` | Capture a millisecond mark |
+| `elapsed(start)` | `i64` | Milliseconds since a mark |
 
 ---
 
 ## cpu
 
-CPU and performance counters.
-
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `time::ns()` | `i64` | High-resolution CPU timestamp (ns) |
-| `time::ms()` | `i64` | CPU timestamp (ms) |
-| `mark()` | `i64` | Take a performance mark |
-| `elapsed::ms(mark)` | `i64` | Milliseconds since mark |
-| `elapsed::ns(mark)` | `i64` | Nanoseconds since mark |
-| `count()` | `i64` | Number of CPU cores |
-| `freq::mhz()` | `i64` | CPU frequency in MHz |
-| `cycles::est(mark)` | `i64` | Estimated CPU cycles since mark |
-| `loadavg()` | `vec[f64]` | System load average |
-| `snapshot()` | `map[str,i64]` | Full CPU snapshot |
+| `count()` | `i64` | Number of host CPUs |
 
 ---
 
@@ -364,27 +314,14 @@ Random number generation.
 
 ## async
 
-Async / concurrency primitives.
+Channel primitives backed directly by the PAL.
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `sleep(ms)` | `mu` | Sleep for milliseconds |
-| `spawn(cmd)` | `i64` | Spawn process (returns pid) |
-| `wait(pid)` | `i64` | Wait for process |
-| `ready(value)` | `str` | Mark task as done (returns `"done:..."`) |
-| `failed(msg)` | `str` | Mark task as failed (returns `"error:..."`) |
-| `pending()` | `str` | Create pending token |
-| `value(task, fallback)` | `str` | Extract value from done task |
-| `error::msg(task)` | `str` | Extract error message |
-| `check::done(task)` | `bool` | True if task completed |
-| `check::error(task)` | `bool` | True if task errored |
-| `check::pending(task)` | `bool` | True if task pending |
-| `spawn::thread(task)` | `i64` | Spawn OS thread with function |
-| `join::thread(tid)` | `i64` | Join thread |
-| `channel()` | `str` | Create IPC channel path |
-| `send(ch, msg)` | `mu` | Send message through channel |
-| `recv(ch)` | `str` | Receive message from channel |
-| `close::channel(ch)` | `mu` | Close and remove channel |
+| `channel_create()` | `Channel` | Acquire a channel handle |
+| `channel_send(channel, data)` | `i64` | Send bytes and return the host result |
+| `channel_recv(channel, buffer)` | `i64` | Receive into a caller-owned buffer |
+| `channel_close(channel)` | `mu` | Release a channel handle |
 
 ---
 
@@ -471,98 +408,6 @@ set rand_i64 = crypto::random::secure::i64()
 
 ---
 
-## iter
-
-Iterator utilities operating on `vec[str]`.
-
-| Function | Returns | Description |
-|----------|---------|-------------|
-| `range(start, end)` | `str` | Newline-separated range string |
-| `count(items)` | `i64` | Number of elements |
-| `nth(items, idx)` | `str` | Element at index |
-| `first(items)` | `str` | First element |
-| `last(items)` | `str` | Last element |
-| `contains(items, needle)` | `bool` | Check if element exists |
-| `index(items, needle)` | `i64` | Index of element (-1 if missing) |
-| `empty(items)` | `bool` | True if no elements |
-
----
-
-## json
-
-JSON parser, navigator, and builder.
-
-| Function | Returns | Description |
-|----------|---------|-------------|
-| `get(data, path)` | `str` | Navigate dot-path (e.g. `"user.name"`) |
-| `exists(data, path)` | `bool` | Check path exists |
-| `type_of(data, path)` | `str` | JSON type at path |
-| `keys(data, path)` | `str` | Object keys (newline-separated) |
-| `len(data, path)` | `i64` | Array length or object key count |
-| `is_valid(data)` | `bool` | Validate JSON syntax |
-| `quoted(s)` | `str` | Escape and quote string |
-| `number(v)` | `str` | JSON number value |
-| `bool_val(v)` | `str` | JSON bool value |
-| `null_val()` | `str` | JSON null value |
-| `object(pairs)` | `str` | Build JSON object from vec |
-| `array(items)` | `str` | Build JSON array from vec |
-| `escape(s)` | `str` | Escape string |
-| `unescape(s)` | `str` | Unescape JSON string |
-
----
-
-## maybe
-
-Option type using tagged strings (`"some:..."` / `"none"`).
-
-| Function | Returns | Description |
-|----------|---------|-------------|
-| `some(value)` | `str` | Wrap value |
-| `none()` | `str` | No value |
-| `is_some(m)` | `bool` | Check if some |
-| `is_none(m)` | `bool` | Check if none |
-| `unwrap(m)` | `str` | Unwrap (panics if none) |
-| `unwrap_or(m, fallback)` | `str` | Unwrap with fallback |
-| `map(m, f)` | `str` | Transform value |
-| `and_then(m, f)` | `str` | Chain maybe-returning function |
-
----
-
-## result
-
-Result type using tagged strings (`"ok:..."` / `"err:..."`).
-
-| Function | Returns | Description |
-|----------|---------|-------------|
-| `ok(value)` | `str` | Success value |
-| `err(msg)` | `str` | Error message |
-| `is_ok(r)` | `bool` | Check if ok |
-| `is_err(r)` | `bool` | Check if err |
-| `unwrap(r)` | `str` | Unwrap (panics if err) |
-| `unwrap_or(r, fallback)` | `str` | Unwrap with fallback |
-| `unwrap_err(r)` | `str` | Extract error |
-| `map(r, f)` | `str` | Transform ok value |
-| `map_err(r, f)` | `str` | Transform error message |
-
----
-
-## websocket (ws)
-
-WebSocket client and server (RFC 6455).
-
-| Function | Returns | Description |
-|----------|---------|-------------|
-| `connect(url)` | `i64` | Connect to WebSocket server |
-| `send::text(fd, msg)` | `mu` | Send text frame |
-| `recv::all(fd)` | `str` | Receive all data |
-| `close(fd)` | `mu` | Close connection |
-| `server::accept(fd)` | `mu` | Accept WebSocket handshake |
-| `server::send_text(fd, msg)` | `mu` | Server send text |
-| `server::recv(fd, max)` | `str` | Server receive |
-| `server::close(fd)` | `mu` | Server close |
-
----
-
 ## log
 
 Logging with formatted output.
@@ -592,29 +437,6 @@ Memory operations.
 
 ---
 
-## gpu
-
-GPU detection.
-
-| Function | Returns | Description |
-|----------|---------|-------------|
-| `snapshot()` | `map[str,i64]` | GPU information snapshot |
-
----
-
-## term
-
-Terminal styling and output.
-
-| Function | Returns | Description |
-|----------|---------|-------------|
-| `style(text, style_code)` | `str` | Apply ANSI style to text |
-| `hr(ch, len)` | `str` | Horizontal rule |
-| `clear()` | `mu` | Clear terminal |
-| `bar(name, elapsed_ms, phase_ms, total_ms)` | `str` | Progress bar |
-
----
-
 ## Quick start
 
 ```mire
@@ -633,12 +455,21 @@ pub fn main: () {
     set n = lists::len(parts)
     set first = lists::get::str(parts 0)
 
-    // Result handling
-    set r = result::ok("done")
-    use dasu(result::unwrap(r))
 }
 ```
 
 ## Version
 
-**2.4.0** — See [CHANGELOG.md](CHANGELOG.md) for migration guide.
+**2.4.1** — See [CHANGELOG.md](CHANGELOG.md) for migration guide.
+
+## Verification
+
+Run the complete Kioto verification from the Avenys checkout:
+
+```sh
+./scripts/verify.sh
+```
+
+The script checks every core module, checks the exported entrypoint, and runs
+the PAL v4 integration smoke tests in `tests/`. Set `MIRE_BIN` or
+`AVENYS_ROOT` when the compiler is outside the sibling `avenys/` directory.

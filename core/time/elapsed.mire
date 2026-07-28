@@ -1,3 +1,0 @@
-module elapsed
-extern fn pal_time_elapsed_ns: (start :i64) :i64 lib "c"
-pub fn ns: (start :i64) :i64 { return pal_time_elapsed_ns(start) }

@@ -1,5 +1,0 @@
-module pad
-extern fn rt_strings_pad_left: (s :&str, w :i64, pad :&str) :str lib "c"
-extern fn rt_strings_pad_right: (s :&str, w :i64, pad :&str) :str lib "c"
-pub fn left: (s :&str, w :i64, pad :&str) :str { return rt_strings_pad_left(s, w, pad) }
-pub fn right: (s :&str, w :i64, pad :&str) :str { return rt_strings_pad_right(s, w, pad) }

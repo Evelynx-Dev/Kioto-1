@@ -1,0 +1,36 @@
+load kioto
+
+@[test]
+pub fn test_strings_namespace: () :bool {
+    set text = " Mire "
+    return strings::starts::with(text " ") &&
+        strings::ends::with(text " ") &&
+        strings::is::empty("") &&
+        strings::to::i64("42") == 42
+}
+
+@[test]
+pub fn test_strings_conversion: () :bool {
+    return strings::from::i64(42) == "42"
+}
+
+@[test]
+pub fn test_collections: () :bool {
+    set values = [1 2 3] :vec[i64]
+    set words = {"answer": "42"} :map[str str]
+    return lists::len(values) == 3 &&
+        lists::get(values 1) == 2 &&
+        dicts::get(words "answer") == "42"
+}
+
+@[test]
+pub fn test_host_queries: () :bool {
+    return time::now_ms() > 0 && cpu::count() > 0 && fs::exists(env::cwd())
+}
+
+@[test]
+pub fn test_channel_ownership: () :bool {
+    set channel = async::channel_create()
+    async::channel_close(channel)
+    return true
+}

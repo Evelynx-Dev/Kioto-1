@@ -1,5 +1,0 @@
-module elapsed
-extern fn pal_cpu_elapsed_ms: (mark :i64) :i64 lib "c"
-extern fn pal_cpu_elapsed_ns: (mark :i64) :i64 lib "c"
-pub fn ms: (mark :i64) :i64 { return pal_cpu_elapsed_ms(mark) }
-pub fn ns: (mark :i64) :i64 { return pal_cpu_elapsed_ns(mark) }

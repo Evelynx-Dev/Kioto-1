@@ -1,16 +1,5 @@
 module cpu
-load kioto::cpu::time
 
-load kioto::cpu::freq
-load kioto::cpu::cycles
-
-extern fn pal_cpu_mark: () :i64 lib "c"
 extern fn pal_cpu_count: () :i64 lib "c"
-extern fn pal_cpu_loadavg: () :vec[f64] lib "c"
-extern fn pal_cpu_snapshot: () :map[str i64] lib "c"
-extern fn rt_cpu_elapsed_ms_str: (mark :i64) :str lib "c"
 
-pub fn mark: () :i64 { return pal_cpu_mark() }
 pub fn count: () :i64 { return pal_cpu_count() }
-pub fn loadavg: () :vec[f64] { return pal_cpu_loadavg() }
-pub fn snapshot: () :map[str i64] { return pal_cpu_snapshot() }

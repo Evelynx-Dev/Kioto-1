@@ -1,5 +1,0 @@
-module time
-extern fn pal_cpu_time_ns: () :i64 lib "c"
-extern fn pal_cpu_time_ms: () :i64 lib "c"
-pub fn ns: () :i64 { return pal_cpu_time_ns() }
-pub fn ms: () :i64 { return pal_cpu_time_ms() }

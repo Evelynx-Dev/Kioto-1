@@ -9,18 +9,8 @@ load kioto::proc
 load kioto::async
 load kioto::mem
 load kioto::cpu
-load kioto::gpu
-load kioto::term
 load kioto::math
-load kioto::types
-load kioto::maybe
-load kioto::result
-load kioto::tuple
-load kioto::iter
 load kioto::net
 load kioto::log
 load kioto::cli
-load kioto::json
-load kioto::ws
 load kioto::crypto
-

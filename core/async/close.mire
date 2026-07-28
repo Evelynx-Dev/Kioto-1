@@ -1,5 +1,0 @@
-module close
-pub fn channel: (ch :&str) {
-    set c = *ch
-    if fs::exists(c) { use fs::drop(c) }
-}

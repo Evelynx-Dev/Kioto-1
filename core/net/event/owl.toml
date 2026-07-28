@@ -1,7 +1,0 @@
-[project]
-name = "event"
-entry = "mod.mire"
-
-[exports]
-accept = "accept.mire"
-has    = "has.mire"

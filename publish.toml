@@ -1,7 +1,7 @@
 [package]
 name = "kioto"
-version = "2.4.0"
-archive = "kioto-2.4.0.tar.zst"
-sha256 = "380b676ab45ceba79b5cb3eea15d9c4d6ba6ab43a7107321b64ed1eb5b3806b8"
+version = "2.4.1"
+archive = "kioto-2.4.1.tar.zst"
+sha256 = "5b1c0d3d90afdd731818b5dced7e9e2369eb11e81eb7275fda47c550255f09bf"
 public-key = "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUNvd0JRWURLMlZ3QXlFQVRxZmVPRXZmczdTbW5BLzR5OS8yQ0dCVmhpUk8wNkczSTl0dXdxeTV2Rjg9Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo="
-signature = "sI2pPQKWPZ9jw0ThaEZKk6/+JL4Nh8yFX9fQlooXJkJAZDG+MCs0IO5AN21WZO760/HuRtif+TplwZFXhGwBBA=="
+signature = "ZaN2CkmznM4AKivmn24uzvQKBgEBipq5GiSttHW4Aw4mhR+MrHgcZ/3I+UjwM/aShZrbGJnEvjk685RS+mLTBw=="

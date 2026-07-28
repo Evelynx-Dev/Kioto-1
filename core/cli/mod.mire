@@ -1,6 +1,7 @@
 module cli
 load kioto::strings
 load kioto::lists
+load kioto::lists::get
 
 extern fn rt_get_args: (argc :i32, argv :ptr) :vec[str] lib "c"
 
@@ -12,7 +13,7 @@ pub fn parse: (raw :&vec[str]) :map[str str] {
     set i = 1 :i64 mut
     while i < len(*raw) {
         set arg = lists::get::str(raw i)
-        if strings::startswith(arg "--") {
+        if strings::starts::with(arg "--") {
             set an = strings::len(arg)
             set flag = strings::substr(arg 2 an)
             set i += 1

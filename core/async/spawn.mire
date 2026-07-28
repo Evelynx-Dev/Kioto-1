@@ -1,2 +1,0 @@
-module spawn
-pub fn thread: (task) :i64 { return thread::spawn(task) }

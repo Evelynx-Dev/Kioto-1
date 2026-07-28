@@ -1,3 +1,0 @@
-module check
-extern fn rt_strings_len: (s :&str) :i64 lib "c"
-pub fn empty: (s :&str) :bool { return rt_strings_len(s) == 0 }

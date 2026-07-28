@@ -2,49 +2,20 @@ module secure
 
 load kioto::strings
 load kioto::lists
-load kioto::proc
 
+extern fn pal_random_fill: (buf :&mut str, len :i64) :bool lib "c"
 extern fn rt_lists_push_i64: (list, value :i64) :vec[i64] lib "c"
 
 pub fn bytes: (n :i64) :vec[i64] {
-    set cmd = "od -An -tu1 -v -w1 -N " + strings::from::i64(n) + " /dev/urandom"
-    set raw = proc::capture(cmd, [] :vec[str])
-    set parts = strings::split(raw "\n")
+    set buf = strings::repeat("\0" n) :str mut
+    set ok = pal_random_fill(buf, n)
+    if !ok { return [] :vec[i64] }
     set result = [] :vec[i64] mut
-    set len = lists::len(parts)
     set i = 0 :i64 mut
-    while i < len {
-        set line_raw = lists::get::str(parts i)
-        set line = strings::trim(line_raw)
-        if line != "" {
-            set num = parse_u8(line)
-            set result = rt_lists_push_i64(result, num)
-        }
+    while i < n {
+        set b = strings::char_at(buf, i) :i64
+        set result = rt_lists_push_i64(result, b & 0xFF)
         set i += 1
-    }
-    return result
-}
-
-fn parse_u8: (s :str) :i64 {
-    set len = strings::len(s)
-    if len == 0 { return 0 }
-    set pos = 0 :i64 mut
-    set result = 0 :i64 mut
-    while pos < len {
-        set c = strings::substr(s pos 1)
-        if c == " " { set pos += 1 } else {
-            if c == "0" { set result = result * 10 + 0 }
-            if c == "1" { set result = result * 10 + 1 }
-            if c == "2" { set result = result * 10 + 2 }
-            if c == "3" { set result = result * 10 + 3 }
-            if c == "4" { set result = result * 10 + 4 }
-            if c == "5" { set result = result * 10 + 5 }
-            if c == "6" { set result = result * 10 + 6 }
-            if c == "7" { set result = result * 10 + 7 }
-            if c == "8" { set result = result * 10 + 8 }
-            if c == "9" { set result = result * 10 + 9 }
-            set pos += 1
-        }
     }
     return result
 }

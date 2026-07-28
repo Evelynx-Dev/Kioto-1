@@ -1,64 +1,61 @@
 module proc
-load kioto::lists
 
-extern fn pal_io_readln: () :str lib "c"
-extern fn pal_io_print: (msg :str) lib "c"
-extern fn pal_io_print_err: (msg :str) lib "c"
-extern fn pal_proc_run: (cmd :str) :str lib "c"
-extern fn pal_proc_exec: (cmd :str) :str lib "c"
-extern fn pal_proc_shell: (cmd :str) :str lib "c"
-extern fn pal_proc_wait: (pid :i64) :i64 lib "c"
-extern fn pal_proc_kill: (pid :i64) lib "c"
-extern fn pal_proc_exit: (status :i64) lib "c"
-extern fn pal_proc_exists: (pid :i64) :i64 lib "c"
-extern fn pal_proc_spawn: (cmd :str) :i64 lib "c"
-
-extern fn rt_vec_get_str: (list :&vec[str], index :i64) :str lib "c"
-
-pub fn join_cmd: (cmd :str, args :vec[str]) :str {
-    set full = cmd :str mut
-    set n = len(args)
-    set i = 0 :i64 mut
-    while i < n {
-        set full = full + " " + rt_vec_get_str(args i)
-        set i += 1
-    }
-    return full
+struct Process {
+    handle :i64
 }
 
-pub fn run: (cmd :str, args :vec[str]) :i64 { return pal_proc_spawn(join_cmd(cmd args)) }
-pub fn spawn: (cmd :str, args :vec[str]) :i64 { return pal_proc_spawn(join_cmd(cmd args)) }
-pub fn capture: (cmd :str, args :vec[str]) :str { return pal_proc_run(join_cmd(cmd args)) }
-pub fn pipe: (commands :vec[str]) :str {
-    set cmd = "" :str mut
-    set n = len(commands)
-    set i = 0 :i64 mut
-    while i < n {
-        if i > 0 { set cmd = cmd + " | " }
-        set cmd = cmd + rt_vec_get_str(commands i)
-        set i += 1
-    }
-    return pal_proc_shell(cmd)
+extern fn pal_proc_create: (argv :ptr, flags :i32, stdin_ch :i64, stdout_ch :i64, stderr_ch :i64) :i64 lib "c"
+extern fn pal_proc_wait: (proc :i64) :i64 lib "c"
+extern fn pal_proc_kill: (proc :i64) :i64 lib "c"
+extern fn pal_proc_close: (proc :i64) lib "c"
+extern fn pal_proc_stdin: (proc :i64) :i64 lib "c"
+extern fn pal_proc_stdout: (proc :i64) :i64 lib "c"
+extern fn pal_proc_stderr: (proc :i64) :i64 lib "c"
+extern fn rt_build_argv: (cmd :&str, args :vec[str]) :ptr lib "c"
+extern fn rt_free_argv: (argv :ptr, argc :i64) lib "c"
+extern fn rt_vec_len: (v :vec[str]) :i64 lib "c"
+
+cons PAL_SPAWN_WAIT = 1 :i32
+
+pub fn create: (cmd :&str, args :vec[str], flags :i32, stdin_ch :i64, stdout_ch :i64, stderr_ch :i64) :Process {
+    set argv = rt_build_argv(cmd, args)
+    set argc = rt_vec_len(args) + 1
+    set h = pal_proc_create(argv, flags, stdin_ch, stdout_ch, stderr_ch)
+    use rt_free_argv(argv, argc)
+    return (Process handle: h)
 }
-pub fn shell: (cmd :str) :str {
-    return pal_proc_shell(cmd)
+
+pub fn wait: (p :Process) :i64 {
+    return pal_proc_wait(p.handle)
 }
-pub fn read: () :str {
-    return pal_io_readln()
+
+pub fn kill: (p :Process) :bool {
+    return pal_proc_kill(p.handle) != 0
 }
-pub fn write: (data :str) {
-    pal_io_print(data)
+
+pub fn close: (p :Process) {
+    use pal_proc_close(p.handle)
 }
-pub fn exit: (code :i64) {
-    use pal_proc_exit(code)
+
+pub fn stdin: (p :Process) :i64 {
+    return pal_proc_stdin(p.handle)
 }
-pub fn eprint: (msg :str) { pal_io_print_err(msg) }
-pub fn kill: (pid :i64) {
-    use pal_proc_kill(pid)
+
+pub fn stdout: (p :Process) :i64 {
+    return pal_proc_stdout(p.handle)
 }
-pub fn wait: (pid :i64) :i64 {
-    return pal_proc_wait(pid)
+
+pub fn stderr: (p :Process) :i64 {
+    return pal_proc_stderr(p.handle)
 }
-pub fn exists: (pid :i64) :bool {
-    return pal_proc_exists(pid) != 0
+
+pub fn spawn: (cmd :&str, args :vec[str]) :i64 {
+    set argv = rt_build_argv(cmd, args)
+    set argc = rt_vec_len(args) + 1
+    set h = pal_proc_create(argv, PAL_SPAWN_WAIT, 0, 0, 0)
+    use rt_free_argv(argv, argc)
+    if h <= 0 { return -1 }
+    set exit_code = pal_proc_wait(h)
+    use pal_proc_close(h)
+    return exit_code
 }

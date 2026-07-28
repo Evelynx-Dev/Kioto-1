@@ -1,3 +1,0 @@
-module spawn
-extern fn pal_proc_spawn: (cmd :str) :i64 lib "c"
-pub fn shell: (cmd :str) :i64 { return pal_proc_spawn(cmd) }

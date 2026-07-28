@@ -1,7 +1,0 @@
-module check
-pub fn done: (task :&str) :bool { return strings::startswith(task "done:") }
-pub fn error: (task :&str) :bool { return strings::startswith(task "error:") }
-pub fn pending: (task :&str) :bool {
-    set t = *task
-    return t == "pending" || t == ""
-}

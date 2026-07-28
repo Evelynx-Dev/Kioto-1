@@ -1,5 +1,51 @@
 # kioto changelog
 
+## [2.4.1] — 2026-07-28 (PAL v4 surface cleanup)
+
+### Changed
+
+- Consolidated `strings` into one module using the nested namespace pattern used by `mire/core/str`.
+- Removed obsolete v3/TLS/network, terminal, GPU, CPU-counter, shell, and tagged-string module surfaces that had no current PAL implementation.
+- Updated filesystem, process, time, and networking documentation to describe real PAL v4 handles and operations.
+- Replaced the legacy `rt_lists_set_i64` declaration with the current `rt_list_set_i64` runtime symbol.
+- Replaced the removed legacy tests with PAL v4 integration smoke tests and added
+  `scripts/verify.sh` for repeatable module, entrypoint, and test checks.
+
+## [2.4.0] — 2026-07-27 (PAL v4 ABI & Kioto proc/fs Fixes)
+
+### Fixed
+
+- **PAL slot table recycling**: `pal_core_reserve` now uses `in_use` flag for the
+  free list (no more generation wraparound ABA bugs). `pal_core_release` clears
+  `in_use` without resetting `generation`.
+- **`pal_core_validate(slot, generation, type)`** — new canonical handle validity
+  check wired up in all 30+ dispatch functions. Detects stale/released handles.
+- **`pal_dir_next` ABI mismatch fixed** (memory corruption): C returns 259-byte
+  struct by value (needs hidden pointer on x86-64 SysV). Added `pal_dir_next_into`
+  and `pal_dir_next_name` helpers. Updated Kioto `fs.mod.mire` extern to use
+  `pal_dir_next_name(dir, out_buf, cap)`.
+- **`proc.spawn` no longer uses shell**: now builds proper `argv` via
+  `rt_build_argv(cmd, args)` and uses `pal_proc_create` + `pal_proc_wait`.
+  Returns exit code `i64` directly. No `system()` call.
+- **`proc.wait` fixed**: uses `pal_proc_wait(handle)` (handle-based) instead of
+  the broken `pal_proc_wait_pid(handle)` (was passing PAL handle as raw PID).
+- **`pal_proc_create ABI mismatch fixed**: Kioto declared `argv :&str` (single
+  `const char *`) but C expects `const char **`. Added `rt_build_argv` runtime
+  helper to marshal `vec[str]` → `char **argv` with NULL sentinel.
+- **Kioto `fs.mod.mire`**: replaced broken builtins `concat(a,b)` and
+  `substr(s,i,n)` with `rt_string_concat` and `rt_strings_substr`.
+- **MIR lowerer protection**: added `"concat"` and `"substr"` to `builtin_names`
+  in `lower/mod.rs` to prevent shadowing by `lists.concat` when `load kioto`
+  imports all modules.
+- **Dead code**: removed unused `g_proc_buf[65536]` and dead `pal_slot_t *s` in
+  `pal_dispatch.c`.
+- **Test fixes**: `pal_proc_spawn_wait_exit_code` → `pal_proc_spawn_exit_code`
+  (simplified, tests blocking spawn directly).
+
+### Changed
+
+- Kioto minimum Avenys version: v3.x compatible
+
 ## [2.3.2] — 2026-07-18
 
 ### Changed

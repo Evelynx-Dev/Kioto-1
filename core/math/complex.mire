@@ -1,4 +1,5 @@
 module complex
+load kioto::math::basic
 struct Complex {
     re :f64
     im :f64

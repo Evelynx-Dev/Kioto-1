@@ -1,8 +1,0 @@
-load kioto
-
-@[test]
-pub fn test_cli_parse: () :bool {
-    set parts = strings::split("--name value" " ")
-    set _p = cli::parse(parts)
-    return true
-}

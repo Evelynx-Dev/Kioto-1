@@ -1,87 +1,52 @@
 module ed25519
 
 load kioto::strings
-load kioto::proc
-load kioto::fs
-load kioto::crypto::random::secure
 
-extern fn rt_crypto_byte_at: (s :&str, idx :i64) :i64 lib "c"
-extern fn rt_hex_to_file: (path :&str, hex :&str) :bool lib "c"
-
-fn uid: () :str {
-    return strings::from::i64(crypto::random::secure::i64() & 0x7FFFFFFFFFFFFFFF)
+struct SecretKey {
+    handle :i64
 }
 
-fn raw_to_hex: (raw :str) :str {
-    set hex_tbl = "0123456789abcdef"
-    set n = strings::len(raw)
-    set result = "" :str mut
-    set i = 0 :i64 mut
-    while i < n {
-        set b = rt_crypto_byte_at(raw, i) & 0xFF
-        set result = result + strings::substr(hex_tbl b >> 4 1) + strings::substr(hex_tbl b & 0x0F 1)
-        set i += 1
-    }
-    return result
+struct PublicKey {
+    handle :i64
 }
 
-pub fn generate_sk: () :str {
-    set id = uid()
-    set path = "/tmp/mire_sk_" + id + ".pem"
-    set pid = proc::run("openssl genpkey -algorithm ed25519 -out " + path, [] :vec[str])
-    proc::wait(pid)
-    if fs::exists(path) && fs::size(path) > 0 { return path }
-    use dasu("  error: openssl key generation failed")
+extern fn pal_secret_create: (algorithm :i64) :i64 lib "c"
+extern fn pal_secret_export_public: (secret :i64) :i64 lib "c"
+extern fn pal_secret_sign: (secret :i64, msg :&str, msg_len :i64, buf :&mut str, buf_len :i64) :i64 lib "c"
+extern fn pal_pubkey_verify: (pubkey :i64, msg :&str, msg_len :i64, sig :&str, sig_len :i64) :bool lib "c"
+extern fn pal_secret_close: (secret :i64) lib "c"
+extern fn pal_pubkey_free: (pubkey :i64) lib "c"
+
+cons PAL_CRYPTO_ED25519 = 1 :i64
+
+pub fn keypair: () :SecretKey {
+    set h = pal_secret_create(PAL_CRYPTO_ED25519)
+    return (SecretKey handle: h)
+}
+
+pub fn secret_to_pub: (secret :SecretKey) :PublicKey {
+    set h = pal_secret_export_public(secret.handle)
+    return (PublicKey handle: h)
+}
+
+pub fn sign: (secret :SecretKey, msg :&str) :str {
+    set msg_len = strings::len(msg)
+    set buf = strings::repeat("\0" 64) :str mut
+    set sig_len = pal_secret_sign(secret.handle, msg, msg_len, buf, 64)
+    if sig_len == 64 { return buf }
     return ""
 }
 
-pub fn generate_pk: (sk_path :str) :str {
-    set id = uid()
-    set pk_path = "/tmp/mire_pk_" + id + ".pem"
-    set pid = proc::run("openssl pkey -in " + sk_path + " -pubout -out " + pk_path, [] :vec[str])
-    proc::wait(pid)
-    if fs::exists(pk_path) && fs::size(pk_path) > 0 { return pk_path }
-    use dasu("  error: openssl public key extraction failed")
-    return ""
+pub fn verify: (pubkey :PublicKey, msg :&str, sig :&str) :bool {
+    set msg_len = strings::len(msg)
+    set sig_len = strings::len(sig)
+    return pal_pubkey_verify(pubkey.handle, msg, msg_len, sig, sig_len)
 }
 
-pub fn read_pem: (path :str) :str {
-    return fs::read(path) :str
+pub fn close_secret: (secret :SecretKey) {
+    use pal_secret_close(secret.handle)
 }
 
-pub fn cleanup_keys: (sk_path :str, pk_path :str) {
-    if strings::len(sk_path) > 0 { fs::drop(sk_path) }
-    if strings::len(pk_path) > 0 { fs::drop(pk_path) }
-}
-
-pub fn sign: (sk_path :str, msg :str) :str {
-    set id = uid()
-    set msg_path = "/tmp/mire_msg_" + id + ".txt"
-    set sig_path = "/tmp/mire_sig_" + id + ".sig"
-    fs::write(msg_path, msg)
-    set pid = proc::run("openssl pkeyutl -sign -inkey " + sk_path + " -in " + msg_path + " -out " + sig_path + " -rawin", [] :vec[str])
-    proc::wait(pid)
-    if fs::exists(sig_path) && fs::size(sig_path) > 0 {
-        set sig_raw = fs::read_bytes(sig_path)
-        set sig_hex = raw_to_hex(sig_raw)
-        fs::drop(msg_path)
-        fs::drop(sig_path)
-        return sig_hex
-    }
-    fs::drop(msg_path)
-    fs::drop(sig_path)
-    return ""
-}
-
-pub fn verify: (pk_path :str, msg :str, sig_hex :str) :bool {
-    if strings::len(pk_path) == 0 || strings::len(sig_hex) == 0 { return false }
-    set id = uid()
-    set msg_path = "/tmp/mire_msg_" + id + ".txt"
-    set sig_path = "/tmp/mire_sig_" + id + ".sig"
-    fs::write(msg_path, msg)
-    rt_hex_to_file(sig_path, sig_hex)
-    set result = proc::capture("openssl pkeyutl -verify -pubin -inkey " + pk_path + " -in " + msg_path + " -sigfile " + sig_path + " -rawin 2>&1; if [ $? -eq 0 ]; then echo VERIFIED; else echo FAILED; fi", [] :vec[str])
-    fs::drop(msg_path)
-    fs::drop(sig_path)
-    return strings::contains(result, "VERIFIED")
+pub fn close_pubkey: (pubkey :PublicKey) {
+    use pal_pubkey_free(pubkey.handle)
 }

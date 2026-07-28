@@ -1,3 +1,0 @@
-module cycles
-extern fn pal_cpu_cycles_est: (mark :i64) :i64 lib "c"
-pub fn est: (mark :i64) :i64 { return pal_cpu_cycles_est(mark) }

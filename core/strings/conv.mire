@@ -1,5 +1,0 @@
-module conv
-extern fn rt_i64_to_string: (value :i64) :str lib "c"
-extern fn rt_string_to_i64: (s :str) :i64 lib "c"
-pub fn string: (value :i64) :str { return rt_i64_to_string(value) }
-pub fn i64: (s :&str) :i64 { return rt_string_to_i64(*s) }

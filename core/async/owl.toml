@@ -1,11 +1,3 @@
 [project]
 name = "async"
 entry = "mod.mire"
-
-[exports]
-error = "error.mire"
-check = "check.mire"
-spawn = "spawn.mire"
-join  = "join.mire"
-close = "close.mire"
-task  = "task/mod.mire"

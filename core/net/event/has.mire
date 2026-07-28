@@ -1,5 +1,0 @@
-module has
-extern fn pal_net_poll: (fd :i64, timeout_ms :i64) :i64 lib "c"
-pub fn data: (fd :i64) :bool {
-    return pal_net_poll(fd 0) > 0
-}

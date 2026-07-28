@@ -1,9 +1,0 @@
-module error
-pub fn msg: (task :&str) :str {
-    set t = *task
-    if strings::startswith(t "error:") {
-        set tn = strings::len(t)
-        return strings::substr(t 6 tn)
-    }
-    return ""
-}

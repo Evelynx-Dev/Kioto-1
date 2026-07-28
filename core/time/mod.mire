@@ -1,12 +1,8 @@
 module time
-load kioto::time::unix
-load kioto::time::elapsed
+extern fn pal_time_now_ms: () :i64 lib "c"
+extern fn pal_time_now_ns: () :i64 lib "c"
 
-extern fn pal_time_unix_ms: () :i64 lib "c"
-extern fn pal_time_unix_ns: () :i64 lib "c"
-extern fn pal_time_elapsed_ms: (start :i64) :i64 lib "c"
-extern fn pal_time_elapsed_ns: (start :i64) :i64 lib "c"
-extern fn pal_time_mark: () :i64 lib "c"
-
-pub fn elapsed: (start :i64) :i64 { return pal_time_elapsed_ms(start) }
-pub fn mark: () :i64 { return pal_time_mark() }
+pub fn now_ms: () :i64 { return pal_time_now_ms() }
+pub fn now_ns: () :i64 { return pal_time_now_ns() }
+pub fn elapsed: (start :i64) :i64 { return pal_time_now_ms() - start }
+pub fn mark: () :i64 { return pal_time_now_ms() }

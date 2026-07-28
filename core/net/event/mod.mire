@@ -1,9 +1,0 @@
-module event
-load kioto::net::event::accept
-load kioto::net::event::has
-
-extern fn pal_net_poll: (fd :i64, timeout_ms :i64) :i64 lib "c"
-
-pub fn wait: (fd :i64, timeout_ms :i64) :bool {
-    return pal_net_poll(fd timeout_ms) > 0
-}

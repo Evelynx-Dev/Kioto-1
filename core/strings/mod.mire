@@ -1,57 +1,74 @@
 module strings
-load kioto::strings::conv
-load kioto::strings::from
-load kioto::strings::pad
-load kioto::strings::replace
-load kioto::strings::check
+
+// ── C runtime ───────────────────────────────────────────────────
+extern fn rt_strings_len: (s :&str) :i64 lib "c"
 extern fn rt_strings_to_upper: (s :&str) :str lib "c"
 extern fn rt_strings_to_lower: (s :&str) :str lib "c"
 extern fn rt_strings_trim: (s :&str) :str lib "c"
-extern fn rt_strings_replace: (s :&str, old :&str, new :&str) :str lib "c"
+extern fn rt_strings_strip: (s :&str) :str lib "c"
 extern fn rt_strings_contains: (s :&str, sub :&str) :bool lib "c"
 extern fn rt_strings_starts_with: (s :&str, prefix :&str) :bool lib "c"
 extern fn rt_strings_ends_with: (s :&str, suffix :&str) :bool lib "c"
-extern fn rt_strings_len: (s :&str) :i64 lib "c"
+extern fn rt_strings_index_of: (s :&str, sub :&str) :i64 lib "c"
+extern fn rt_strings_replace: (s :&str, old :&str, new :&str) :str lib "c"
+extern fn rt_strings_replace_first: (s :&str, old :&str, new :&str) :str lib "c"
 extern fn rt_strings_split: (s :&str, sep :&str) :vec[str] lib "c"
 extern fn rt_strings_join_list: (parts :&vec[str], sep :&str) :str lib "c"
 extern fn rt_strings_substr: (s :&str, start :i64, len :i64) :str lib "c"
-extern fn rt_strings_strip: (s :&str) :str lib "c"
 extern fn rt_strings_repeat: (s :&str, n :i64) :str lib "c"
+extern fn rt_strings_char_at: (s :&str, index :i64) :i64 lib "c"
+extern fn rt_strings_pad_left: (s :&str, total_len :i64, pad :&str) :str lib "c"
+extern fn rt_strings_pad_right: (s :&str, total_len :i64, pad :&str) :str lib "c"
+extern fn rt_i64_to_string: (value :i64) :str lib "c"
+extern fn rt_string_to_i64: (s :&str) :i64 lib "c"
+extern fn rt_bool_to_string: (value :i64) :str lib "c"
+extern fn rt_f64_to_string: (value :f64) :str lib "c"
+extern fn rt_string_concat: (left :&str, right :&str) :str lib "c"
+extern fn rt_string_copy: (value :&str) :str lib "c"
 
+pub fn len: (s :&str) :i64 { return rt_strings_len(s) }
 pub fn upper: (s :&str) :str { return rt_strings_to_upper(s) }
 pub fn lower: (s :&str) :str { return rt_strings_to_lower(s) }
+pub fn trim: (s :&str) :str { return rt_strings_trim(s) }
+pub fn strip: (s :&str) :str { return rt_strings_strip(s) }
+pub fn contains: (s :&str, sub :&str) :bool { return rt_strings_contains(s, sub) }
+pub fn index: (s :&str, sub :&str) :i64 { return rt_strings_index_of(s, sub) }
 pub fn split: (s :&str, sep :&str) :vec[str] { return rt_strings_split(s, sep) }
 pub fn join: (parts :&vec[str], sep :&str) :str { return rt_strings_join_list(parts, sep) }
-pub fn replace: (s :&str, old :&str, new :&str) :str { return rt_strings_replace(s, old, new) }
-pub fn contains: (s :&str, sub :&str) :bool { return rt_strings_contains(s, sub) }
-pub fn startswith: (s :&str, prefix :&str) :bool { return rt_strings_starts_with(s, prefix) }
-pub fn endswith: (s :&str, suffix :&str) :bool { return rt_strings_ends_with(s, suffix) }
-pub fn len: (s :&str) :i64 { return rt_strings_len(s) }
-pub fn trim: (s :&str) :str { return rt_strings_trim(s) }
-pub fn ltrim: (s :&str) :str {
-    set v = *s
-    set n = strings::len(v)
-    set i = 0 :i64 mut
-    while i < n {
-        set c = strings::substr(v i 1)
-        if c != " " && c != "\t" && c != "\n" && c != "\r" { return strings::substr(v i n - i) }
-        set i = i + 1
-    }
-    return ""
-}
-pub fn rtrim: (s :&str) :str {
-    set v = *s
-    set n = strings::len(v)
-    if n == 0 { return "" }
-    set i = n - 1 :i64 mut
-    while i >= 0 {
-        set c = strings::substr(v i 1)
-        if c != " " && c != "\t" && c != "\n" && c != "\r" { return strings::substr(v 0 i + 1) }
-        set i = i - 1
-    }
-    return ""
-}
 pub fn substr: (s :&str, start :i64, len :i64) :str { return rt_strings_substr(s, start, len) }
 pub fn repeat: (s :&str, n :i64) :str { return rt_strings_repeat(s, n) }
-extern fn rt_strings_index_of: (s :&str, sub :&str) :i64 lib "c"
-pub fn index: (s :&str, sub :&str) :i64 { return rt_strings_index_of(s, sub) }
+pub fn char_at: (s :&str, index :i64) :i64 { return rt_strings_char_at(s, index) }
+pub fn concat: (left :&str, right :&str) :str { return rt_string_concat(left, right) }
+pub fn copy: (s :&str) :str { return rt_string_copy(s) }
+
+pub fn starts: () {
+    pub fn with: (s :&str, prefix :&str) :bool { return rt_strings_starts_with(s, prefix) }
+}
+
+pub fn ends: () {
+    pub fn with: (s :&str, suffix :&str) :bool { return rt_strings_ends_with(s, suffix) }
+}
+
+pub fn replace: () {
+    pub fn all: (s :&str, old :&str, new :&str) :str { return rt_strings_replace(s, old, new) }
+    pub fn first: (s :&str, old :&str, new :&str) :str { return rt_strings_replace_first(s, old, new) }
+}
+
+pub fn pad: () {
+    pub fn left: (s :&str, width :i64, pad :&str) :str { return rt_strings_pad_left(s, width, pad) }
+    pub fn right: (s :&str, width :i64, pad :&str) :str { return rt_strings_pad_right(s, width, pad) }
+}
+
+pub fn from: () {
+    pub fn i64: (value :i64) :str { return rt_i64_to_string(value) }
+    pub fn bool: (value :i64) :str { return rt_bool_to_string(value) }
+    pub fn f64: (value :f64) :str { return rt_f64_to_string(value) }
+}
+
+pub fn to: () {
+    pub fn i64: (value :&str) :i64 { return rt_string_to_i64(*value) }
+}
+
+pub fn is: () {
+    pub fn empty: (s :&str) :bool { return rt_strings_len(s) == 0 }
+}
