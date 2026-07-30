@@ -49,6 +49,12 @@ pub fn stderr: (p :Process) :i64 {
     return pal_proc_stderr(p.handle)
 }
 
+extern fn rt_proc_capture_output: (cmd :&str) :str lib "c"
+
+pub fn shell: (cmd :&str) :str {
+    return rt_proc_capture_output(cmd)
+}
+
 pub fn spawn: (cmd :&str, args :vec[str]) :i64 {
     set argv = rt_build_argv(cmd, args)
     set argc = rt_vec_len(args) + 1

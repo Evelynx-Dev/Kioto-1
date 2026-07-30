@@ -9,6 +9,34 @@ extern fn pal_channel_send: (ch :i64, data :&str, len :i64) :i64 lib "c"
 extern fn pal_channel_recv: (ch :i64, buf :&mut str) :i64 lib "c"
 extern fn pal_channel_close: (ch :i64) lib "c"
 
+extern fn pal_proc_create: (argv :ptr, flags :i32, stdin_ch :i64, stdout_ch :i64, stderr_ch :i64) :i64 lib "c"
+extern fn pal_proc_wait: (proc :i64) :i64 lib "c"
+extern fn rt_build_argv: (cmd :&str, args :vec[str]) :ptr lib "c"
+extern fn rt_free_argv: (argv :ptr, argc :i64) lib "c"
+
+struct Task {
+    value :str
+}
+
+pub fn ready: (value :str) :Task {
+    return (Task value: value)
+}
+
+pub fn value: (task :Task, fallback :str) :str {
+    return task.value
+}
+
+pub fn spawn: (cmd :&str) :i64 {
+    set argv = rt_build_argv(cmd, [] :vec[str])
+    set h = pal_proc_create(argv, 0 :i32, 0, 0, 0)
+    use rt_free_argv(argv, 1)
+    return h
+}
+
+pub fn wait: (pid :i64) :i64 {
+    return pal_proc_wait(pid)
+}
+
 pub fn channel_create: () :Channel {
     set h = pal_channel_create()
     return (Channel handle: h)

@@ -1,5 +1,14 @@
 # kioto changelog
 
+## [2.4.2] — 2026-07-31 (async Task + proc.shell)
+
+### Added
+
+- **`core/async/mod.mire`**: `Task` struct with `ready()`, `value()`, `spawn()`,
+  `wait()` — async task/future pattern and process spawn via PAL.
+- **`core/proc/mod.mire`**: `shell(cmd)` — captures command output via PAL-based
+  `proc_shell` with managed memory.
+
 ## [2.4.1] — 2026-07-28 (PAL v4 surface cleanup)
 
 ### Changed
