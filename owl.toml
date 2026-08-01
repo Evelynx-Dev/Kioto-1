@@ -1,6 +1,6 @@
 [project]
 name = "kioto"
-version = "2.4.1"
+version = "2.4.3"
 description = "Standard library for Mire"
 entry = "code/mod.mire"
 
@@ -15,10 +15,11 @@ tests = "tests"
 output = "bin"
 cache = "bin/.cache"
 
+[dependencies]
+mire = { path = "../mire" }
+
 [exports]
 strings = "core/strings"
-lists   = "core/lists"
-dicts   = "core/dicts"
 time    = "core/time"
 fs      = "core/fs"
 env     = "core/env"

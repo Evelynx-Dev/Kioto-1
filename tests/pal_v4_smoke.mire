@@ -1,4 +1,6 @@
 load kioto
+load mire::vec
+load mire::map
 
 @[test]
 pub fn test_strings_namespace: () :bool {
@@ -18,9 +20,9 @@ pub fn test_strings_conversion: () :bool {
 pub fn test_collections: () :bool {
     set values = [1 2 3] :vec[i64]
     set words = {"answer": "42"} :map[str str]
-    return lists::len(values) == 3 &&
-        lists::get(values 1) == 2 &&
-        dicts::get(words "answer") == "42"
+    return vec::len(values) == 3 &&
+        vec::get::i64(values 1) == 2 &&
+        map::get::str(words "answer") == "42"
 }
 
 @[test]

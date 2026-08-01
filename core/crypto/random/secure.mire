@@ -1,10 +1,9 @@
 module secure
 
 load kioto::strings
-load kioto::lists
+load mire::vec
 
 extern fn pal_random_fill: (buf :&mut str, len :i64) :bool lib "c"
-extern fn rt_lists_push_i64: (list, value :i64) :vec[i64] lib "c"
 
 pub fn bytes: (n :i64) :vec[i64] {
     set buf = strings::repeat("\0" n) :str mut
@@ -14,7 +13,7 @@ pub fn bytes: (n :i64) :vec[i64] {
     set i = 0 :i64 mut
     while i < n {
         set b = strings::char_at(buf, i) :i64
-        set result = rt_lists_push_i64(result, b & 0xFF)
+        set result = vec::push::i64(result, b & 0xFF)
         set i += 1
     }
     return result
@@ -26,7 +25,7 @@ pub fn seed: (size :i64) :str {
     set hex_tbl = "0123456789abcdef"
     set i = 0 :i64 mut
     while i < size {
-        set b = lists::get(raw, i) & 0xFF
+        set b = vec::get::i64(raw, i) & 0xFF
         set result = result + strings::substr(hex_tbl b >> 4 1) + strings::substr(hex_tbl b & 0x0F 1)
         set i += 1
     }
@@ -38,7 +37,7 @@ pub fn i64: () :i64 {
     set result = 0 :i64 mut
     set i = 0 :i64 mut
     while i < 8 {
-        set b = lists::get(raw, i) & 0xFF
+        set b = vec::get::i64(raw, i) & 0xFF
         set result = (result << 8) | b
         set i += 1
     }

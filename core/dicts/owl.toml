@@ -1,6 +1,0 @@
-[project]
-name = "dicts"
-entry = "mod.mire"
-
-[exports]
-check = "check.mire"

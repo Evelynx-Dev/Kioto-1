@@ -1,10 +1,9 @@
 module sha256
 
-load kioto::lists
+load mire::vec
 load kioto::strings
 
 extern fn rt_crypto_byte_at: (s :&str, idx :i64) :i64 lib "c"
-extern fn rt_lists_push_i64: (list, value :i64) :vec[i64] lib "c"
 
 pub fn hash: (msg :&str) :str {
     set len = strings::len(msg)
@@ -14,27 +13,27 @@ pub fn hash: (msg :&str) :str {
 
     set i = 0 :i64 mut
     while i < len {
-        set bytes = rt_lists_push_i64(bytes, rt_crypto_byte_at(msg, i))
+        set bytes = vec::push::i64(bytes, rt_crypto_byte_at(msg, i))
         set i += 1
     }
 
-    set bytes = rt_lists_push_i64(bytes, 0x80)
+    set bytes = vec::push::i64(bytes, 0x80)
 
     set pad_len = (56 - (len + 1) % 64 + 64) % 64
     set i = 0 :i64 mut
     while i < pad_len {
-        set bytes = rt_lists_push_i64(bytes, 0x00)
+        set bytes = vec::push::i64(bytes, 0x00)
         set i += 1
     }
 
-    set bytes = rt_lists_push_i64(bytes, (bit_len >> 56) & 0xFF)
-    set bytes = rt_lists_push_i64(bytes, (bit_len >> 48) & 0xFF)
-    set bytes = rt_lists_push_i64(bytes, (bit_len >> 40) & 0xFF)
-    set bytes = rt_lists_push_i64(bytes, (bit_len >> 32) & 0xFF)
-    set bytes = rt_lists_push_i64(bytes, (bit_len >> 24) & 0xFF)
-    set bytes = rt_lists_push_i64(bytes, (bit_len >> 16) & 0xFF)
-    set bytes = rt_lists_push_i64(bytes, (bit_len >> 8) & 0xFF)
-    set bytes = rt_lists_push_i64(bytes, bit_len & 0xFF)
+    set bytes = vec::push::i64(bytes, (bit_len >> 56) & 0xFF)
+    set bytes = vec::push::i64(bytes, (bit_len >> 48) & 0xFF)
+    set bytes = vec::push::i64(bytes, (bit_len >> 40) & 0xFF)
+    set bytes = vec::push::i64(bytes, (bit_len >> 32) & 0xFF)
+    set bytes = vec::push::i64(bytes, (bit_len >> 24) & 0xFF)
+    set bytes = vec::push::i64(bytes, (bit_len >> 16) & 0xFF)
+    set bytes = vec::push::i64(bytes, (bit_len >> 8) & 0xFF)
+    set bytes = vec::push::i64(bytes, bit_len & 0xFF)
 
     set h0 = 0x6a09e667 :i64 mut
     set h1 = 0xbb67ae85 :i64 mut
@@ -47,7 +46,7 @@ pub fn hash: (msg :&str) :str {
 
     set K = [0x428a2f98 0x71374491 0xb5c0fbcf 0xe9b5dba5 0x3956c25b 0x59f111f1 0x923f82a4 0xab1c5ed5 0xd807aa98 0x12835b01 0x243185be 0x550c7dc3 0x72be5d74 0x80deb1fe 0x9bdc06a7 0xc19bf174 0xe49b69c1 0xefbe4786 0x0fc19dc6 0x240ca1cc 0x2de92c6f 0x4a7484aa 0x5cb0a9dc 0x76f988da 0x983e5152 0xa831c66d 0xb00327c8 0xbf597fc7 0xc6e00bf3 0xd5a79147 0x06ca6351 0x14292967 0x27b70a85 0x2e1b2138 0x4d2c6dfc 0x53380d13 0x650a7354 0x766a0abb 0x81c2c92e 0x92722c85 0xa2bfe8a1 0xa81a664b 0xc24b8b70 0xc76c51a3 0xd192e819 0xd6990624 0xf40e3585 0x106aa070 0x19a4c116 0x1e376c08 0x2748774c 0x34b0bcb5 0x391c0cb3 0x4ed8aa4a 0x5b9cca4f 0x682e6ff3 0x748f82ee 0x78a5636f 0x84c87814 0x8cc70208 0x90befffa 0xa4506ceb 0xbef9a3f7 0xc67178f2] :vec[i64]
 
-    set n_blocks = lists::len(bytes) / 64
+    set n_blocks = vec::len(bytes) / 64
 
     set block_idx = 0 :i64 mut
     while block_idx < n_blocks {
@@ -58,22 +57,22 @@ pub fn hash: (msg :&str) :str {
         set t = 0 :i64 mut
         while t < 16 {
             set off = base + t * 4
-            set word = ((lists::get(bytes, off) & 0xFF) << 24) |
-                       ((lists::get(bytes, off + 1) & 0xFF) << 16) |
-                       ((lists::get(bytes, off + 2) & 0xFF) << 8) |
-                       (lists::get(bytes, off + 3) & 0xFF)
-            set w_lst = rt_lists_push_i64(w_lst, word)
+            set word = ((vec::get::i64(bytes, off) & 0xFF) << 24) |
+                       ((vec::get::i64(bytes, off + 1) & 0xFF) << 16) |
+                       ((vec::get::i64(bytes, off + 2) & 0xFF) << 8) |
+                       (vec::get::i64(bytes, off + 3) & 0xFF)
+            set w_lst = vec::push::i64(w_lst, word)
             set t += 1
         }
 
         set t = 16 :i64 mut
         while t < 64 {
-            set w15 = lists::get(w_lst, t - 15)
-            set w2 = lists::get(w_lst, t - 2)
+            set w15 = vec::get::i64(w_lst, t - 15)
+            set w2 = vec::get::i64(w_lst, t - 2)
             set s0_val = (((w15 >> 7) | (w15 << 25)) ^ ((w15 >> 18) | (w15 << 14)) ^ (w15 >> 3)) & 0xFFFFFFFF
             set s1_val = (((w2 >> 17) | (w2 << 15)) ^ ((w2 >> 19) | (w2 << 13)) ^ (w2 >> 10)) & 0xFFFFFFFF
-            set w_val = (s1_val + lists::get(w_lst, t - 7) + s0_val + lists::get(w_lst, t - 16)) & 0xFFFFFFFF
-            set w_lst = rt_lists_push_i64(w_lst, w_val)
+            set w_val = (s1_val + vec::get::i64(w_lst, t - 7) + s0_val + vec::get::i64(w_lst, t - 16)) & 0xFFFFFFFF
+            set w_lst = vec::push::i64(w_lst, w_val)
             set t += 1
         }
 
@@ -90,7 +89,7 @@ pub fn hash: (msg :&str) :str {
         while t < 64 {
             set s1_val = (((e >> 6) | (e << 26)) ^ ((e >> 11) | (e << 21)) ^ ((e >> 25) | (e << 7))) & 0xFFFFFFFF
             set ch_val = g ^ (e & (f ^ g))
-            set temp1 = (h + s1_val + ch_val + lists::get(K, t) + lists::get(w_lst, t)) & 0xFFFFFFFF
+            set temp1 = (h + s1_val + ch_val + vec::get::i64(K, t) + vec::get::i64(w_lst, t)) & 0xFFFFFFFF
             set s0_val = (((a >> 2) | (a << 30)) ^ ((a >> 13) | (a << 19)) ^ ((a >> 22) | (a << 10))) & 0xFFFFFFFF
             set maj_val = (a & b) ^ (a & c) ^ (b & c)
             set temp2 = (s0_val + maj_val) & 0xFFFFFFFF

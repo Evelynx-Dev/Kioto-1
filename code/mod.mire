@@ -1,7 +1,5 @@
 module kioto
 load kioto::strings
-load kioto::lists
-load kioto::dicts
 load kioto::time
 load kioto::fs
 load kioto::env

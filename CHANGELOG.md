@@ -1,5 +1,26 @@
 # kioto changelog
 
+## [2.4.3] — 2026-08-01 (collections migrated to mire::vec / mire::map)
+
+### Removed
+
+- **`core/lists` and `core/dicts` modules deleted**. kioto no longer manages
+  syntax/types for collections — that belongs to the `mire` compiler stdlib.
+  Consumers migrate to `mire::vec` (push/get/set/len/index/contains/sort/...) and
+  `mire::map` (get/set/has/keys/values/remove/merge/...). `code/mod.mire` no longer
+  exports them and `owl.toml` drops the `lists`/`dicts` `[exports]` entries.
+
+### Changed
+
+- `core/cli/mod.mire` now depends on `mire::vec` (`vec::get::str`, `vec::len`).
+- `core/crypto/encode/{hex,base64}.mire`, `core/crypto/hash/{sha256,sha512}.mire`,
+  and `core/crypto/random/secure.mire` migrated from `rt_lists_*`/`lists::*` to
+  `mire::vec` operations (`vec::push::i64`, `vec::get::i64`, `vec::len`).
+- `tests/pal_v4_smoke.mire` updated to exercise `mire::vec`/`mire::map` directly.
+- `owl.toml` gains `[dependencies] mire = { path = "../mire" }`.
+- README rewritten to document the real kioto surface (fs/env/proc/async/mem/
+  crypto/ed25519 handle APIs) and to point collections at `mire::vec`/`mire::map`.
+
 ## [2.4.2] — 2026-07-31 (async Task + proc.shell)
 
 ### Added

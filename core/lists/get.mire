@@ -1,3 +1,0 @@
-module get
-extern fn rt_vec_get_str: (list :&vec[str], index :i64) :str lib "c"
-pub fn str: (list :&vec[str], index :i64) :str { return rt_vec_get_str(list, index) }

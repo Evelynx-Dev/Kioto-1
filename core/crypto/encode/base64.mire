@@ -1,6 +1,6 @@
 module base64
 
-load kioto::lists
+load mire::vec
 load kioto::strings
 
 fn ALPHABET: () :str {
@@ -15,16 +15,16 @@ fn char_value: (c :str) :i64 {
 }
 
 pub fn encode: (bytes :vec[i64]) :str {
-    set n = lists::len(bytes)
+    set n = vec::len(bytes)
     set s = "" :str mut
     set alphabet = ALPHABET()
     set i = 0 :i64 mut
     while i < n {
-        set b0 = lists::get(bytes, i) & 0xFF
+        set b0 = vec::get::i64(bytes, i) & 0xFF
         set b1 = 0 :i64 mut
-        if i + 1 < n { set b1 = lists::get(bytes, i + 1) & 0xFF }
+        if i + 1 < n { set b1 = vec::get::i64(bytes, i + 1) & 0xFF }
         set b2 = 0 :i64 mut
-        if i + 2 < n { set b2 = lists::get(bytes, i + 2) & 0xFF }
+        if i + 2 < n { set b2 = vec::get::i64(bytes, i + 2) & 0xFF }
         set triple = (b0 << 16) | (b1 << 8) | b2
         set c0 = (triple >> 18) & 0x3F
         set c1 = (triple >> 12) & 0x3F
@@ -55,9 +55,9 @@ pub fn decode: (s :&str) :vec[i64] {
         if !pad2 && v2 < 0 { return [] :vec[i64] }
         if !pad3 && v3 < 0 { return [] :vec[i64] }
         set triple = (v0 << 18) | (v1 << 12) | (v2 << 6) | v3
-        set result = lists::push(result, (triple >> 16) & 0xFF)
-        if !pad2 { set result = lists::push(result, (triple >> 8) & 0xFF) }
-        if !pad3 { set result = lists::push(result, triple & 0xFF) }
+        set result = vec::push::i64(result, (triple >> 16) & 0xFF)
+        if !pad2 { set result = vec::push::i64(result, (triple >> 8) & 0xFF) }
+        if !pad3 { set result = vec::push::i64(result, triple & 0xFF) }
         set i = i + 4
     }
     return result

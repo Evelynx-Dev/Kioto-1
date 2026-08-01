@@ -1,6 +1,6 @@
 module hex
 
-load kioto::lists
+load mire::vec
 load kioto::strings
 
 fn HEX_STR: () :str {
@@ -11,9 +11,9 @@ pub fn encode: (bytes :vec[i64]) :str {
     set hex = HEX_STR()
     set result = "" :str mut
     set i = 0 :i64 mut
-    set n = lists::len(bytes)
+    set n = vec::len(bytes)
     while i < n {
-        set b = lists::get(bytes, i) & 0xFF
+        set b = vec::get::i64(bytes, i) & 0xFF
         set hi = b >> 4
         set lo = b & 0x0F
         set result = result + strings::substr(hex hi 1) + strings::substr(hex lo 1)
@@ -30,7 +30,7 @@ pub fn decode: (s :&str) :vec[i64] {
         set hi = hex_val(strings::substr(s i 1))
         set lo = hex_val(strings::substr(s i + 1 1))
         if hi < 0 || lo < 0 { return [] :vec[i64] }
-        set result = lists::push(result, (hi << 4) | lo)
+        set result = vec::push::i64(result, (hi << 4) | lo)
         set i += 2
     }
     return result

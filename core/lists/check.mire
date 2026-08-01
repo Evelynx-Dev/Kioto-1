@@ -1,3 +1,0 @@
-module check
-extern fn rt_lists_len: (list :&list) :i64 lib "c"
-pub fn empty: (list :&list) :bool { return rt_lists_len(list) == 0 }

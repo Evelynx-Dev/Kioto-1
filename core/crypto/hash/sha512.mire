@@ -1,10 +1,9 @@
 module sha512
 
-load kioto::lists
+load mire::vec
 load kioto::strings
 
 extern fn rt_crypto_byte_at: (s :&str, idx :i64) :i64 lib "c"
-extern fn rt_lists_push_i64: (list, value :i64) :vec[i64] lib "c"
 
 pub fn hash: (msg :&str) :str {
     set len = strings::len(msg)
@@ -15,35 +14,35 @@ pub fn hash: (msg :&str) :str {
 
     set i = 0 :i64 mut
     while i < len {
-        set bytes = rt_lists_push_i64(bytes, rt_crypto_byte_at(msg, i))
+        set bytes = vec::push::i64(bytes, rt_crypto_byte_at(msg, i))
         set i += 1
     }
 
     // Append 0x80
-    set bytes = rt_lists_push_i64(bytes, 0x80)
+    set bytes = vec::push::i64(bytes, 0x80)
 
     // Pad to 112 mod 128 (space for 16-byte length field)
     set pad_len = (112 - (len + 1) % 128 + 128) % 128
     set i = 0 :i64 mut
     while i < pad_len {
-        set bytes = rt_lists_push_i64(bytes, 0x00)
+        set bytes = vec::push::i64(bytes, 0x00)
         set i += 1
     }
 
     // Append 128-bit big-endian length (high 64 bits = 0, low 64 bits = bit_len)
     set i = 0 :i64 mut
     while i < 8 {
-        set bytes = rt_lists_push_i64(bytes, 0x00)
+        set bytes = vec::push::i64(bytes, 0x00)
         set i += 1
     }
-    set bytes = rt_lists_push_i64(bytes, (bit_len >> 56) & 0xFF)
-    set bytes = rt_lists_push_i64(bytes, (bit_len >> 48) & 0xFF)
-    set bytes = rt_lists_push_i64(bytes, (bit_len >> 40) & 0xFF)
-    set bytes = rt_lists_push_i64(bytes, (bit_len >> 32) & 0xFF)
-    set bytes = rt_lists_push_i64(bytes, (bit_len >> 24) & 0xFF)
-    set bytes = rt_lists_push_i64(bytes, (bit_len >> 16) & 0xFF)
-    set bytes = rt_lists_push_i64(bytes, (bit_len >> 8) & 0xFF)
-    set bytes = rt_lists_push_i64(bytes, bit_len & 0xFF)
+    set bytes = vec::push::i64(bytes, (bit_len >> 56) & 0xFF)
+    set bytes = vec::push::i64(bytes, (bit_len >> 48) & 0xFF)
+    set bytes = vec::push::i64(bytes, (bit_len >> 40) & 0xFF)
+    set bytes = vec::push::i64(bytes, (bit_len >> 32) & 0xFF)
+    set bytes = vec::push::i64(bytes, (bit_len >> 24) & 0xFF)
+    set bytes = vec::push::i64(bytes, (bit_len >> 16) & 0xFF)
+    set bytes = vec::push::i64(bytes, (bit_len >> 8) & 0xFF)
+    set bytes = vec::push::i64(bytes, bit_len & 0xFF)
 
     // Initial hash values
     set h0 = 7640891576956012808 :i64 mut
@@ -57,88 +56,88 @@ pub fn hash: (msg :&str) :str {
 
     // Round constants K[0..79]
     set K = [] :vec[i64] mut
-    set K = rt_lists_push_i64(K, 4794697086780616226)
-    set K = rt_lists_push_i64(K, 8158064640168781261)
-    set K = rt_lists_push_i64(K, -5349999486874862801)
-    set K = rt_lists_push_i64(K, -1606136188198331460)
-    set K = rt_lists_push_i64(K, 4131703408338449720)
-    set K = rt_lists_push_i64(K, 6480981068601479193)
-    set K = rt_lists_push_i64(K, -7908458776815382629)
-    set K = rt_lists_push_i64(K, -6116909921290321640)
-    set K = rt_lists_push_i64(K, -2880145864133508542)
-    set K = rt_lists_push_i64(K, 1334009975649890238)
-    set K = rt_lists_push_i64(K, 2608012711638119052)
-    set K = rt_lists_push_i64(K, 6128411473006802146)
-    set K = rt_lists_push_i64(K, 8268148722764581231)
-    set K = rt_lists_push_i64(K, -9160688886553864527)
-    set K = rt_lists_push_i64(K, -7215885187991268811)
-    set K = rt_lists_push_i64(K, -4495734319001033068)
-    set K = rt_lists_push_i64(K, -1973867731355612462)
-    set K = rt_lists_push_i64(K, -1171420211273849373)
-    set K = rt_lists_push_i64(K, 1135362057144423861)
-    set K = rt_lists_push_i64(K, 2597628984639134821)
-    set K = rt_lists_push_i64(K, 3308224258029322869)
-    set K = rt_lists_push_i64(K, 5365058923640841347)
-    set K = rt_lists_push_i64(K, 6679025012923562964)
-    set K = rt_lists_push_i64(K, 8573033837759648693)
-    set K = rt_lists_push_i64(K, -7476448914759557205)
-    set K = rt_lists_push_i64(K, -6327057829258317296)
-    set K = rt_lists_push_i64(K, -5763719355590565569)
-    set K = rt_lists_push_i64(K, -4658551843659510044)
-    set K = rt_lists_push_i64(K, -4116276920077217854)
-    set K = rt_lists_push_i64(K, -3051310485924567259)
-    set K = rt_lists_push_i64(K, 489312712824947311)
-    set K = rt_lists_push_i64(K, 1452737877330783856)
-    set K = rt_lists_push_i64(K, 2861767655752347644)
-    set K = rt_lists_push_i64(K, 3322285676063803686)
-    set K = rt_lists_push_i64(K, 5560940570517711597)
-    set K = rt_lists_push_i64(K, 5996557281743188959)
-    set K = rt_lists_push_i64(K, 7280758554555802590)
-    set K = rt_lists_push_i64(K, 8532644243296465576)
-    set K = rt_lists_push_i64(K, -9096487096722542874)
-    set K = rt_lists_push_i64(K, -7894198246740708037)
-    set K = rt_lists_push_i64(K, -6719396339535248540)
-    set K = rt_lists_push_i64(K, -6333637450476146687)
-    set K = rt_lists_push_i64(K, -4446306890439682159)
-    set K = rt_lists_push_i64(K, -4076793802049405392)
-    set K = rt_lists_push_i64(K, -3345356375505022440)
-    set K = rt_lists_push_i64(K, -2983346525034927856)
-    set K = rt_lists_push_i64(K, -860691631967231958)
-    set K = rt_lists_push_i64(K, 1182934255886127544)
-    set K = rt_lists_push_i64(K, 1847814050463011016)
-    set K = rt_lists_push_i64(K, 2177327727835720531)
-    set K = rt_lists_push_i64(K, 2830643537854262169)
-    set K = rt_lists_push_i64(K, 3796741975233480872)
-    set K = rt_lists_push_i64(K, 4115178125766777443)
-    set K = rt_lists_push_i64(K, 5681478168544905931)
-    set K = rt_lists_push_i64(K, 6601373596472566643)
-    set K = rt_lists_push_i64(K, 7507060721942968483)
-    set K = rt_lists_push_i64(K, 8399075790359081724)
-    set K = rt_lists_push_i64(K, 8693463985226723168)
-    set K = rt_lists_push_i64(K, -8878714635349349518)
-    set K = rt_lists_push_i64(K, -8302665154208450068)
-    set K = rt_lists_push_i64(K, -8016688836872298968)
-    set K = rt_lists_push_i64(K, -6606660893046293015)
-    set K = rt_lists_push_i64(K, -4685533653050689259)
-    set K = rt_lists_push_i64(K, -4147400797238176981)
-    set K = rt_lists_push_i64(K, -3880063495543823972)
-    set K = rt_lists_push_i64(K, -3348786107499101689)
-    set K = rt_lists_push_i64(K, -1523767162380948706)
-    set K = rt_lists_push_i64(K, -757361751448694408)
-    set K = rt_lists_push_i64(K, 500013540394364858)
-    set K = rt_lists_push_i64(K, 748580250866718886)
-    set K = rt_lists_push_i64(K, 1242879168328830382)
-    set K = rt_lists_push_i64(K, 1977374033974150939)
-    set K = rt_lists_push_i64(K, 2944078676154940804)
-    set K = rt_lists_push_i64(K, 3659926193048069267)
-    set K = rt_lists_push_i64(K, 4368137639120453308)
-    set K = rt_lists_push_i64(K, 4836135668995329356)
-    set K = rt_lists_push_i64(K, 5532061633213252278)
-    set K = rt_lists_push_i64(K, 6448918945643986474)
-    set K = rt_lists_push_i64(K, 6902733635092675308)
-    set K = rt_lists_push_i64(K, 7801388544844847127)
+    set K = vec::push::i64(K, 4794697086780616226)
+    set K = vec::push::i64(K, 8158064640168781261)
+    set K = vec::push::i64(K, -5349999486874862801)
+    set K = vec::push::i64(K, -1606136188198331460)
+    set K = vec::push::i64(K, 4131703408338449720)
+    set K = vec::push::i64(K, 6480981068601479193)
+    set K = vec::push::i64(K, -7908458776815382629)
+    set K = vec::push::i64(K, -6116909921290321640)
+    set K = vec::push::i64(K, -2880145864133508542)
+    set K = vec::push::i64(K, 1334009975649890238)
+    set K = vec::push::i64(K, 2608012711638119052)
+    set K = vec::push::i64(K, 6128411473006802146)
+    set K = vec::push::i64(K, 8268148722764581231)
+    set K = vec::push::i64(K, -9160688886553864527)
+    set K = vec::push::i64(K, -7215885187991268811)
+    set K = vec::push::i64(K, -4495734319001033068)
+    set K = vec::push::i64(K, -1973867731355612462)
+    set K = vec::push::i64(K, -1171420211273849373)
+    set K = vec::push::i64(K, 1135362057144423861)
+    set K = vec::push::i64(K, 2597628984639134821)
+    set K = vec::push::i64(K, 3308224258029322869)
+    set K = vec::push::i64(K, 5365058923640841347)
+    set K = vec::push::i64(K, 6679025012923562964)
+    set K = vec::push::i64(K, 8573033837759648693)
+    set K = vec::push::i64(K, -7476448914759557205)
+    set K = vec::push::i64(K, -6327057829258317296)
+    set K = vec::push::i64(K, -5763719355590565569)
+    set K = vec::push::i64(K, -4658551843659510044)
+    set K = vec::push::i64(K, -4116276920077217854)
+    set K = vec::push::i64(K, -3051310485924567259)
+    set K = vec::push::i64(K, 489312712824947311)
+    set K = vec::push::i64(K, 1452737877330783856)
+    set K = vec::push::i64(K, 2861767655752347644)
+    set K = vec::push::i64(K, 3322285676063803686)
+    set K = vec::push::i64(K, 5560940570517711597)
+    set K = vec::push::i64(K, 5996557281743188959)
+    set K = vec::push::i64(K, 7280758554555802590)
+    set K = vec::push::i64(K, 8532644243296465576)
+    set K = vec::push::i64(K, -9096487096722542874)
+    set K = vec::push::i64(K, -7894198246740708037)
+    set K = vec::push::i64(K, -6719396339535248540)
+    set K = vec::push::i64(K, -6333637450476146687)
+    set K = vec::push::i64(K, -4446306890439682159)
+    set K = vec::push::i64(K, -4076793802049405392)
+    set K = vec::push::i64(K, -3345356375505022440)
+    set K = vec::push::i64(K, -2983346525034927856)
+    set K = vec::push::i64(K, -860691631967231958)
+    set K = vec::push::i64(K, 1182934255886127544)
+    set K = vec::push::i64(K, 1847814050463011016)
+    set K = vec::push::i64(K, 2177327727835720531)
+    set K = vec::push::i64(K, 2830643537854262169)
+    set K = vec::push::i64(K, 3796741975233480872)
+    set K = vec::push::i64(K, 4115178125766777443)
+    set K = vec::push::i64(K, 5681478168544905931)
+    set K = vec::push::i64(K, 6601373596472566643)
+    set K = vec::push::i64(K, 7507060721942968483)
+    set K = vec::push::i64(K, 8399075790359081724)
+    set K = vec::push::i64(K, 8693463985226723168)
+    set K = vec::push::i64(K, -8878714635349349518)
+    set K = vec::push::i64(K, -8302665154208450068)
+    set K = vec::push::i64(K, -8016688836872298968)
+    set K = vec::push::i64(K, -6606660893046293015)
+    set K = vec::push::i64(K, -4685533653050689259)
+    set K = vec::push::i64(K, -4147400797238176981)
+    set K = vec::push::i64(K, -3880063495543823972)
+    set K = vec::push::i64(K, -3348786107499101689)
+    set K = vec::push::i64(K, -1523767162380948706)
+    set K = vec::push::i64(K, -757361751448694408)
+    set K = vec::push::i64(K, 500013540394364858)
+    set K = vec::push::i64(K, 748580250866718886)
+    set K = vec::push::i64(K, 1242879168328830382)
+    set K = vec::push::i64(K, 1977374033974150939)
+    set K = vec::push::i64(K, 2944078676154940804)
+    set K = vec::push::i64(K, 3659926193048069267)
+    set K = vec::push::i64(K, 4368137639120453308)
+    set K = vec::push::i64(K, 4836135668995329356)
+    set K = vec::push::i64(K, 5532061633213252278)
+    set K = vec::push::i64(K, 6448918945643986474)
+    set K = vec::push::i64(K, 6902733635092675308)
+    set K = vec::push::i64(K, 7801388544844847127)
 
-    set n_blocks = lists::len(bytes) / 128
+    set n_blocks = vec::len(bytes) / 128
 
     set block_idx = 0 :i64 mut
     while block_idx < n_blocks {
@@ -150,20 +149,20 @@ pub fn hash: (msg :&str) :str {
         set t = 0 :i64 mut
         while t < 16 {
             set off = base + t * 8
-            set word = ((lists::get(bytes, off) & 0xFF) << 56) | ((lists::get(bytes, off + 1) & 0xFF) << 48) | ((lists::get(bytes, off + 2) & 0xFF) << 40) | ((lists::get(bytes, off + 3) & 0xFF) << 32) | ((lists::get(bytes, off + 4) & 0xFF) << 24) | ((lists::get(bytes, off + 5) & 0xFF) << 16) | ((lists::get(bytes, off + 6) & 0xFF) << 8) | (lists::get(bytes, off + 7) & 0xFF)
-            set W = rt_lists_push_i64(W, word)
+            set word = ((vec::get::i64(bytes, off) & 0xFF) << 56) | ((vec::get::i64(bytes, off + 1) & 0xFF) << 48) | ((vec::get::i64(bytes, off + 2) & 0xFF) << 40) | ((vec::get::i64(bytes, off + 3) & 0xFF) << 32) | ((vec::get::i64(bytes, off + 4) & 0xFF) << 24) | ((vec::get::i64(bytes, off + 5) & 0xFF) << 16) | ((vec::get::i64(bytes, off + 6) & 0xFF) << 8) | (vec::get::i64(bytes, off + 7) & 0xFF)
+            set W = vec::push::i64(W, word)
             set t += 1
         }
 
         // Message schedule W[16..79]
         set t = 16 :i64 mut
         while t < 80 {
-            set w15 = lists::get(W, t - 15)
-            set w2 = lists::get(W, t - 2)
+            set w15 = vec::get::i64(W, t - 15)
+            set w2 = vec::get::i64(W, t - 2)
             set s0 = (((w15 >> 1) | (w15 << 63)) ^ ((w15 >> 8) | (w15 << 56)) ^ (w15 >> 7))
             set s1 = ((w2 >> 19) | (w2 << 45)) ^ ((w2 >> 61) | (w2 << 3)) ^ (w2 >> 6)
-            set w_val = s1 + lists::get(W, t - 7) + s0 + lists::get(W, t - 16)
-            set W = rt_lists_push_i64(W, w_val)
+            set w_val = s1 + vec::get::i64(W, t - 7) + s0 + vec::get::i64(W, t - 16)
+            set W = vec::push::i64(W, w_val)
             set t += 1
         }
 
@@ -181,8 +180,8 @@ pub fn hash: (msg :&str) :str {
         while t < 80 {
             set S1 = ((e >> 14) | (e << 50)) ^ ((e >> 18) | (e << 46)) ^ ((e >> 41) | (e << 23))
             set ch_val = g ^ (e & (f ^ g))
-            set kt = lists::get(K, t)
-            set wt = lists::get(W, t)
+            set kt = vec::get::i64(K, t)
+            set wt = vec::get::i64(W, t)
             set temp1 = h + S1 + ch_val + kt + wt
             set S0 = ((a >> 28) | (a << 36)) ^ ((a >> 34) | (a << 30)) ^ ((a >> 39) | (a << 25))
             set maj_val = (a & b) ^ (a & c) ^ (b & c)

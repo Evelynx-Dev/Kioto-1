@@ -1,3 +1,0 @@
-module check
-extern fn rt_dicts_is_empty: (dict) :bool lib "c"
-pub fn empty: (dict) :bool { return rt_dicts_is_empty(dict) }
