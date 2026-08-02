@@ -1,6 +1,6 @@
 # kioto — Mire standard library
 
-Version **2.4.3** — [CHANGELOG](CHANGELOG.md)
+Version **2.4.4** — [CHANGELOG](CHANGELOG.md)
 
 Kioto is the core library for the Mire language ecosystem.
 Load the full library with `load kioto`, or load individual modules
@@ -63,6 +63,19 @@ String manipulation. All functions take `&str` borrows and return owned values.
 | `from::f64(v)` | `str` | Convert f64 to string |
 | `to::i64(s)` | `i64` | Parse string as i64 |
 | `is::empty(s)` | `bool` | True if string is empty |
+
+---
+
+## time
+
+Host time queries (monotonic millisecond clock).
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `now::ms()` | `i64` | Current time in milliseconds |
+| `now::ns()` | `i64` | Current time in nanoseconds |
+| `elapsed(start)` | `i64` | Milliseconds since a mark |
+| `mark()` | `i64` | Read a timestamp to pass to `elapsed` |
 
 ---
 
@@ -131,30 +144,30 @@ handle-based functions use the PAL v4 `Root`/`File`/`Dir` resource handles.
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `read(path)` | `&str` | Read entire file |
+| `read(path)` | `str` | Read entire file (owned copy) |
 | `write(path, data)` | — | Write file (create/truncate) |
 | `exists(path)` | `bool` | Check if path exists |
-| `mkdir(path)` | `bool` | Create directory |
-| `rmdir(path)` | `bool` | Remove directory |
 | `drop(path)` | `bool` | Delete file |
-| `join(a, b)` | `&str` | Join path components |
-| `dir(path)` | `&str` | Parent directory |
-| `name(path)` | `&str` | File name from path |
-| `ext(path)` | `&str` | File extension |
-| `root_open(path)` | `Root` | Acquire a filesystem root handle |
-| `root_close(root)` | — | Release a root handle |
-| `open(root, path)` | `File` | Open a file for reading |
-| `open_write(root, path)` | `File` | Open a file for writing |
-| `open_create(root, path)` | `File` | Create (read+write) |
-| `open_truncate(root, path)` | `File` | Create and truncate |
-| `read_file(file, buf, max_len)` | `i64` | Read into a caller-owned buffer |
-| `write_file(file, data)` | `i64` | Write bytes to a file |
-| `seek(file, offset, whence)` | `i64` | Seek within a file |
-| `size(file)` | `i64` | File size in bytes |
-| `close(file)` | — | Close a file handle |
-| `dir_open(root, path)` | `Dir` | Open a directory under a root |
-| `dir_next(dir, entry)` | `bool` | Read next directory entry |
-| `dir_close(dir)` | — | Release a directory handle |
+| `path::join(a, b)` | `&str` | Join path components |
+| `path::dir(path)` | `&str` | Parent directory |
+| `path::name(path)` | `&str` | File name from path |
+| `path::ext(path)` | `&str` | File extension |
+| `root::open(path)` | `Root` | Acquire a filesystem root handle |
+| `root::close(root)` | — | Release a root handle |
+| `dir::create(path)` | `bool` | Create directory |
+| `dir::remove(path)` | `bool` | Remove directory |
+| `dir::open(root, path)` | `Dir` | Open a directory under a root |
+| `dir::next(dir, entry)` | `bool` | Read next directory entry |
+| `dir::close(dir)` | — | Release a directory handle |
+| `file::open::read(root, path)` | `File` | Open a file for reading |
+| `file::open::write(root, path)` | `File` | Open a file for writing |
+| `file::open::create(root, path)` | `File` | Create (read+write) |
+| `file::open::truncate(root, path)` | `File` | Create and truncate |
+| `file::read(file, buf, max_len)` | `i64` | Read into a caller-owned buffer |
+| `file::write(file, data)` | `i64` | Write bytes to a file |
+| `file::seek(file, offset, whence)` | `i64` | Seek within a file |
+| `file::size(file)` | `i64` | File size in bytes |
+| `file::close(file)` | — | Close a file handle |
 
 ---
 
@@ -166,7 +179,7 @@ Environment access.
 |----------|---------|-------------|
 | `args(argc, argv)` | `vec[str]` | Command-line arguments |
 | `cwd()` | `&str` | Current working directory |
-| `get(name)` | `&str` | Get env var value |
+| `var(name)` | `&str` | Get env var value |
 
 ---
 
@@ -176,15 +189,16 @@ Process management. Handles are PAL v4 `Process` resources.
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `create(cmd, args, flags, stdin_ch, stdout_ch, stderr_ch)` | `Process` | Spawn with explicit argv and channel handles |
-| `spawn(cmd, args)` | `i64` | Spawn, wait, and return the exit code (no shell) |
-| `shell(cmd)` | `str` | Run via shell and capture output |
+| `run::create(cmd, args, flags, stdin_ch, stdout_ch, stderr_ch)` | `Process` | Spawn with explicit argv and channel handles |
+| `run::spawn(cmd, args)` | `i64` | Spawn, wait, and return the exit code (no shell) |
+| `run::output(cmd, args)` | `str` | Capture stdout via argv (no shell) |
+| `run::shell(cmd)` | `str` | Run via shell and capture output (escape hatch) |
 | `wait(process)` | `i64` | Wait for a process handle |
 | `kill(process)` | `bool` | Kill a process handle |
 | `close(process)` | — | Release a process handle |
-| `stdin(process)` | `i64` | Process stdin channel |
-| `stdout(process)` | `i64` | Process stdout channel |
-| `stderr(process)` | `i64` | Process stderr channel |
+| `stream::input(process)` | `i64` | Process stdin channel |
+| `stream::output(process)` | `i64` | Process stdout channel |
+| `stream::error(process)` | `i64` | Process stderr channel |
 
 ---
 
@@ -194,14 +208,14 @@ Channel primitives backed directly by the PAL, plus a task/future pattern.
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `ready(value)` | `Task` | Wrap a value as a completed task |
-| `value(task, fallback)` | `str` | Read a task's value |
+| `task::ready(value)` | `Task` | Wrap a value as a completed task |
+| `task::value(task, fallback)` | `str` | Read a task's value |
 | `spawn(cmd)` | `i64` | Spawn a background process |
 | `wait(pid)` | `i64` | Wait for a spawned pid |
-| `channel_create()` | `Channel` | Acquire a channel handle |
-| `channel_send(channel, data)` | `i64` | Send bytes, return the host result |
-| `channel_recv(channel, buf)` | `i64` | Receive into a caller-owned buffer |
-| `channel_close(channel)` | — | Release a channel handle |
+| `channel::create()` | `Channel` | Acquire a channel handle |
+| `channel::send(channel, data)` | `i64` | Send bytes, return the host result |
+| `channel::recv(channel, buf)` | `i64` | Receive into a caller-owned buffer |
+| `channel::close(channel)` | — | Release a channel handle |
 
 ---
 
@@ -353,13 +367,13 @@ Low-level TCP resources backed by PAL v4 handles.
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `connect(host, port)` | `Socket` | Open a TCP socket handle |
-| `send(socket, data)` | `i64` | Send bytes |
-| `recv(socket, buffer, max_len)` | `i64` | Receive bytes into a caller-owned buffer |
-| `close(socket)` | — | Release a socket handle |
-| `bind(port)` | `Listener` | Open a listening handle |
-| `accept(listener)` | `Socket` | Accept one connection |
-| `listener_close(listener)` | — | Release a listener handle |
+| `socket::connect(host, port)` | `Socket` | Open a TCP socket handle |
+| `socket::send(socket, data)` | `i64` | Send bytes |
+| `socket::recv(socket, buffer, max_len)` | `i64` | Receive bytes into a caller-owned buffer |
+| `socket::close(socket)` | — | Release a socket handle |
+| `listener::bind(port)` | `Listener` | Open a listening handle |
+| `listener::accept(listener)` | `Socket` | Accept one connection |
+| `listener::close(listener)` | — | Release a listener handle |
 
 ---
 
@@ -426,20 +440,20 @@ Ed25519 digital signatures via PAL (EdDSA, Curve25519, RFC 8032).
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `keypair()` | `SecretKey` | Generate a secret key handle |
-| `secret_to_pub(secret)` | `PublicKey` | Derive the public key |
-| `sign(secret, msg)` | `str` | Sign a message (64-byte signature) |
-| `verify(pubkey, msg, sig)` | `bool` | Verify a signature |
-| `close_secret(secret)` | — | Release a secret key handle |
-| `close_pubkey(pubkey)` | — | Release a public key handle |
+| `secret::new()` | `SecretKey` | Generate a secret key handle |
+| `secret::public(secret)` | `PublicKey` | Derive the public key |
+| `secret::sign(secret, msg)` | `str` | Sign a message (64-byte signature) |
+| `public::verify(pubkey, msg, sig)` | `bool` | Verify a signature |
+| `secret::close(secret)` | — | Release a secret key handle |
+| `public::close(pubkey)` | — | Release a public key handle |
 
 ```mire
-set secret = crypto::sign::ed25519::keypair()
-set pubkey = crypto::sign::ed25519::secret_to_pub(secret)
-set sig = crypto::sign::ed25519::sign(secret "message")
-set ok = crypto::sign::ed25519::verify(pubkey "message" sig)
-crypto::sign::ed25519::close_secret(secret)
-crypto::sign::ed25519::close_pubkey(pubkey)
+set secret = crypto::sign::ed25519::secret::new()
+set pubkey = crypto::sign::ed25519::secret::public(secret)
+set sig = crypto::sign::ed25519::secret::sign(secret "message")
+set ok = crypto::sign::ed25519::public::verify(pubkey "message" sig)
+crypto::sign::ed25519::secret::close(secret)
+crypto::sign::ed25519::public::close(pubkey)
 ```
 
 ---
@@ -479,7 +493,7 @@ pub fn main: () {
 
 ## Version
 
-**2.4.3** — See [CHANGELOG.md](CHANGELOG.md) for the migration guide.
+**2.4.4** — See [CHANGELOG.md](CHANGELOG.md) for the migration guide.
 
 ## Verification
 

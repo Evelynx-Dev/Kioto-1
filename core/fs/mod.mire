@@ -1,14 +1,14 @@
 module fs
 
-struct Root {
+pub struct Root {
     handle :i64
 }
 
-struct File {
+pub struct File {
     handle :i64
 }
 
-struct Dir {
+pub struct Dir {
     handle :i64
 }
 
@@ -28,7 +28,7 @@ extern fn pal_fs_exists: (path :&str) :bool lib "c"
 extern fn pal_fs_mkdir: (path :&str) :bool lib "c"
 extern fn pal_fs_rmdir: (path :&str) :bool lib "c"
 extern fn pal_fs_unlink: (path :&str) :bool lib "c"
-extern fn pal_fs_read_file: (path :&str) :&str lib "c"
+extern fn rt_fs_read_bytes: (path :&str) :str lib "c"
 extern fn rt_strings_char_at: (s :&str, i :i64) :i64 lib "c"
 extern fn rt_strings_substr: (s :&str, start :i64, len :i64) :str lib "c"
 extern fn rt_string_concat: (left :&str, right :&str) :str lib "c"
@@ -42,82 +42,12 @@ cons PAL_SEEK_BEGIN = 0 :i32
 cons PAL_SEEK_CURRENT = 1 :i32
 cons PAL_SEEK_END = 2 :i32
 
-pub fn root_open: (path :&str) :Root {
-    set h = pal_root_open(path)
-    return (Root handle: h)
-}
-
-pub fn root_close: (root :Root) {
-    use pal_root_close(root.handle)
-}
-
-pub fn open: (root :Root, path :&str) :File {
-    set h = pal_file_open(root.handle, path, PAL_OPEN_READ)
-    return (File handle: h)
-}
-
-pub fn open_write: (root :Root, path :&str) :File {
-    set h = pal_file_open(root.handle, path, PAL_OPEN_WRITE)
-    return (File handle: h)
-}
-
-pub fn open_create: (root :Root, path :&str) :File {
-    set h = pal_file_open(root.handle, path, (PAL_OPEN_READ + PAL_OPEN_WRITE + PAL_OPEN_CREATE :i32))
-    return (File handle: h)
-}
-
-pub fn open_truncate: (root :Root, path :&str) :File {
-    set h = pal_file_open(root.handle, path, (PAL_OPEN_READ + PAL_OPEN_WRITE + PAL_OPEN_CREATE + PAL_OPEN_TRUNCATE :i32))
-    return (File handle: h)
-}
-
-pub fn read_file: (file :File, buf :&mut str, max_len :i64) :i64 {
-    return pal_file_read(file.handle, buf, max_len)
-}
-
-pub fn write_file: (file :File, data :&str) :i64 {
-    return pal_file_write(file.handle, data, len(data))
-}
-
-pub fn seek: (file :File, offset :i64, whence :i32) :i64 {
-    return pal_file_seek(file.handle, offset, whence)
-}
-
-pub fn size: (file :File) :i64 {
-    return pal_file_size(file.handle)
-}
-
-pub fn close: (file :File) {
-    use pal_file_close(file.handle)
-}
-
-pub fn dir_open: (root :Root, path :&str) :Dir {
-    set h = pal_dir_open(root.handle, path)
-    return (Dir handle: h)
-}
-
-pub fn dir_next: (dir :Dir, entry :&mut str) :bool {
-    return pal_dir_next_name(dir.handle, entry, 256) > 0
-}
-
-pub fn dir_close: (dir :Dir) {
-    use pal_dir_close(dir.handle)
-}
-
 pub fn exists: (path :&str) :bool {
     return pal_fs_exists(path)
 }
 
-pub fn mkdir: (path :&str) :bool {
-    return pal_fs_mkdir(path)
-}
-
-pub fn rmdir: (path :&str) :bool {
-    return pal_fs_rmdir(path)
-}
-
-pub fn drop: (path :&str) :bool {
-    return pal_fs_unlink(path)
+pub fn read: (path :&str) :str {
+    return rt_fs_read_bytes(path)
 }
 
 pub fn write: (path :&str, data :&str) {
@@ -128,49 +58,133 @@ pub fn write: (path :&str, data :&str) {
     pal_root_close(root)
 }
 
-pub fn read: (path :&str) :&str {
-    return pal_fs_read_file(path)
+pub fn drop: (path :&str) :bool {
+    return pal_fs_unlink(path)
 }
 
-pub fn join: (a :&str, b :&str) :&str {
-    set last = rt_strings_char_at(a, len(a) - 1)
-    if last == 47 {
-        return rt_string_concat(a, b)
-    } else {
-        return rt_string_concat(rt_string_concat(a, "/"), b)
-    }
-}
-
-pub fn dir: (path :&str) :&str {
-    set i = len(path) - 1 :i64 mut
-    while i > 0 {
-        if rt_strings_char_at(path, i) == 47 {
-            return rt_strings_substr(path, 0, i)
+// ── path ────────────────────────────────────────────────────────
+pub fn path: () {
+    pub fn join: (a :&str, b :&str) :&str {
+        set last = rt_strings_char_at(a, len(a) - 1)
+        if last == 47 {
+            return rt_string_concat(a, b)
+        } else {
+            return rt_string_concat(rt_string_concat(a, "/"), b)
         }
-        set i = i - 1
     }
-    return "."
+
+    pub fn dir: (path :&str) :&str {
+        set i = len(path) - 1 :i64 mut
+        while i > 0 {
+            if rt_strings_char_at(path, i) == 47 {
+                return rt_strings_substr(path, 0, i)
+            }
+            set i = i - 1
+        }
+        return "."
+    }
+
+    pub fn name: (path :&str) :&str {
+        set i = len(path) - 1 :i64 mut
+        while i > 0 {
+            if rt_strings_char_at(path, i) == 47 {
+                return rt_strings_substr(path, i + 1, len(path))
+            }
+            set i = i - 1
+        }
+        return path
+    }
+
+    pub fn ext: (path :&str) :&str {
+        set n = fs::path::name(path)
+        set i = len(n) - 1 :i64 mut
+        while i > 0 {
+            if rt_strings_char_at(n, i) == 46 {
+                return rt_strings_substr(n, i, len(n))
+            }
+            set i = i - 1
+        }
+        return ""
+    }
 }
 
-pub fn name: (path :&str) :&str {
-    set i = len(path) - 1 :i64 mut
-    while i > 0 {
-        if rt_strings_char_at(path, i) == 47 {
-            return rt_strings_substr(path, i + 1, len(path))
-        }
-        set i = i - 1
+// ── dir ─────────────────────────────────────────────────────────
+pub fn dir: () {
+    pub fn create: (path :&str) :bool {
+        return pal_fs_mkdir(path)
     }
-    return path
+
+    pub fn remove: (path :&str) :bool {
+        return pal_fs_rmdir(path)
+    }
+
+    pub fn open: (root :Root, path :&str) :Dir {
+        set h = pal_dir_open(root.handle, path)
+        return (Dir handle: h)
+    }
+
+    pub fn next: (d :Dir, entry :&mut str) :bool {
+        return pal_dir_next_name(d.handle, entry, 256) > 0
+    }
+
+    pub fn close: (d :Dir) {
+        use pal_dir_close(d.handle)
+    }
 }
 
-pub fn ext: (path :&str) :&str {
-    set n = name(path)
-    set i = len(n) - 1 :i64 mut
-    while i > 0 {
-        if rt_strings_char_at(n, i) == 46 {
-            return rt_strings_substr(n, i, len(n))
-        }
-        set i = i - 1
+// ── root ────────────────────────────────────────────────────────
+pub fn root: () {
+    pub fn open: (path :&str) :Root {
+        set h = pal_root_open(path)
+        return (Root handle: h)
     }
-    return ""
+
+    pub fn close: (root :Root) {
+        use pal_root_close(root.handle)
+    }
+}
+
+// ── file ────────────────────────────────────────────────────────
+pub fn file: () {
+    pub fn open: () {
+        pub fn read: (root :Root, path :&str) :File {
+            set h = pal_file_open(root.handle, path, PAL_OPEN_READ)
+            return (File handle: h)
+        }
+
+        pub fn write: (root :Root, path :&str) :File {
+            set h = pal_file_open(root.handle, path, PAL_OPEN_WRITE)
+            return (File handle: h)
+        }
+
+        pub fn create: (root :Root, path :&str) :File {
+            set h = pal_file_open(root.handle, path, (PAL_OPEN_READ + PAL_OPEN_WRITE + PAL_OPEN_CREATE :i32))
+            return (File handle: h)
+        }
+
+        pub fn truncate: (root :Root, path :&str) :File {
+            set h = pal_file_open(root.handle, path, (PAL_OPEN_READ + PAL_OPEN_WRITE + PAL_OPEN_CREATE + PAL_OPEN_TRUNCATE :i32))
+            return (File handle: h)
+        }
+    }
+
+    pub fn read: (file :File, buf :&mut str, max_len :i64) :i64 {
+        return pal_file_read(file.handle, buf, max_len)
+    }
+
+    pub fn write: (file :File, data :&str) :i64 {
+        return pal_file_write(file.handle, data, len(data))
+    }
+
+    pub fn seek: (file :File, offset :i64, whence :i32) :i64 {
+        return pal_file_seek(file.handle, offset, whence)
+    }
+
+    pub fn size: (file :File) :i64 {
+        return pal_file_size(file.handle)
+    }
+
+    pub fn close: (file :File) {
+        use pal_file_close(file.handle)
+    }
 }

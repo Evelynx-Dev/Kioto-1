@@ -12,6 +12,6 @@ pub fn cwd: () :&str {
     return pal_env_cwd()
 }
 
-pub fn get: (name :&str) :&str {
+pub fn var: (name :&str) :&str {
     return pal_env_get(name)
 }

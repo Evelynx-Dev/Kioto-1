@@ -1,8 +1,12 @@
 module time
+
 extern fn pal_time_now_ms: () :i64 lib "c"
 extern fn pal_time_now_ns: () :i64 lib "c"
 
-pub fn now_ms: () :i64 { return pal_time_now_ms() }
-pub fn now_ns: () :i64 { return pal_time_now_ns() }
+pub fn now: () {
+    pub fn ms: () :i64 { return pal_time_now_ms() }
+    pub fn ns: () :i64 { return pal_time_now_ns() }
+}
+
 pub fn elapsed: (start :i64) :i64 { return pal_time_now_ms() - start }
 pub fn mark: () :i64 { return pal_time_now_ms() }

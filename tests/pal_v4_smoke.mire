@@ -27,12 +27,58 @@ pub fn test_collections: () :bool {
 
 @[test]
 pub fn test_host_queries: () :bool {
-    return time::now_ms() > 0 && cpu::count() > 0 && fs::exists(env::cwd())
+    return time::now::ms() > 0 && cpu::count() > 0 && fs::exists(env::cwd())
 }
 
 @[test]
 pub fn test_channel_ownership: () :bool {
-    set channel = async::channel_create()
-    async::channel_close(channel)
+    set channel = async::channel::create()
+    async::channel::close(channel)
     return true
+}
+
+@[test]
+pub fn test_channel_roundtrip: () :bool {
+    set ch = async::channel::create()
+    set sent = async::channel::send(ch "ping")
+    set buf = strings::repeat("\0" 64) :str mut
+    set n = async::channel::recv(ch buf 64)
+    async::channel::close(ch)
+    return sent == 4 && n == 4
+}
+
+@[test]
+pub fn test_proc_output_no_shell: () :bool {
+    set out = proc::run::output("/bin/echo" ["hola"] :vec[str])
+    return strings::trim(out) == "hola"
+}
+
+@[test]
+pub fn test_proc_output_safe_metachars: () :bool {
+    fs::drop("/tmp/kioto_pwned")
+    set out = proc::run::output("/bin/echo" ["a;touch /tmp/kioto_pwned"] :vec[str])
+    set pwned = fs::exists("/tmp/kioto_pwned")
+    fs::drop("/tmp/kioto_pwned")
+    return strings::contains(out "a;touch /tmp/kioto_pwned") && !pwned
+}
+
+@[test]
+pub fn test_fs_read_managed: () :bool {
+    fs::write("/tmp/kioto_read_test" "contenido")
+    set content = fs::read("/tmp/kioto_read_test")
+    fs::drop("/tmp/kioto_read_test")
+    return strings::trim(content) == "contenido"
+}
+
+@[test]
+pub fn test_complex_div_zero: () :bool {
+    set z = math::complex::div(math::complex::new(1.0 2.0) math::complex::new(0.0 0.0))
+    return math::complex::real(z) == 0.0 && math::complex::imag(z) == 0.0
+}
+
+@[test]
+pub fn test_cli_parse_flags: () :bool {
+    set args = ["run" "--out" "x.mire"] :vec[str]
+    set parsed = cli::parse(args)
+    return map::get::str(parsed "command") == "run" && map::get::str(parsed "out") == "x.mire"
 }

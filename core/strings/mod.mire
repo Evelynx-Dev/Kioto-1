@@ -61,7 +61,7 @@ pub fn pad: () {
 
 pub fn from: () {
     pub fn i64: (value :i64) :str { return rt_i64_to_string(value) }
-    pub fn bool: (value :i64) :str { return rt_bool_to_string(value) }
+    pub fn bool: (value :bool) :str { return rt_bool_to_string(if value { 1 } else { 0 }) }
     pub fn f64: (value :f64) :str { return rt_f64_to_string(value) }
 }
 

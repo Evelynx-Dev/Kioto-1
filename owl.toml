@@ -1,6 +1,6 @@
 [project]
 name = "kioto"
-version = "2.4.3"
+version = "2.4.4"
 description = "Standard library for Mire"
 entry = "code/mod.mire"
 

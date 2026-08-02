@@ -1,10 +1,10 @@
 module net
 
-struct Socket {
+pub struct Socket {
     handle :i64
 }
 
-struct Listener {
+pub struct Listener {
     handle :i64
 }
 
@@ -18,33 +18,39 @@ extern fn pal_listener_close: (listener :i64) lib "c"
 
 cons PAL_SOCKET_TCP = 1 :i32
 
-pub fn connect: (host :&str, port :u16) :Socket {
-    set h = pal_socket_connect(host, port, PAL_SOCKET_TCP)
-    return (Socket handle: h)
+// ── socket ──────────────────────────────────────────────────────
+pub fn socket: () {
+    pub fn connect: (host :&str, port :u16) :Socket {
+        set h = pal_socket_connect(host, port, PAL_SOCKET_TCP)
+        return (Socket handle: h)
+    }
+
+    pub fn send: (sock :Socket, data :&str) :i64 {
+        return pal_socket_send(sock.handle, data, len(data))
+    }
+
+    pub fn recv: (sock :Socket, buf :&mut str, max_len :i64) :i64 {
+        return pal_socket_recv(sock.handle, buf, max_len)
+    }
+
+    pub fn close: (sock :Socket) {
+        use pal_socket_close(sock.handle)
+    }
 }
 
-pub fn send: (sock :Socket, data :&str) :i64 {
-    return pal_socket_send(sock.handle, data, len(data))
-}
+// ── listener ────────────────────────────────────────────────────
+pub fn listener: () {
+    pub fn bind: (port :u16) :Listener {
+        set h = pal_listener_bind(port, PAL_SOCKET_TCP)
+        return (Listener handle: h)
+    }
 
-pub fn recv: (sock :Socket, buf :&mut str, max_len :i64) :i64 {
-    return pal_socket_recv(sock.handle, buf, max_len)
-}
+    pub fn accept: (listener :Listener) :Socket {
+        set h = pal_listener_accept(listener.handle)
+        return (Socket handle: h)
+    }
 
-pub fn close: (sock :Socket) {
-    use pal_socket_close(sock.handle)
-}
-
-pub fn bind: (port :u16) :Listener {
-    set h = pal_listener_bind(port, PAL_SOCKET_TCP)
-    return (Listener handle: h)
-}
-
-pub fn accept: (listener :Listener) :Socket {
-    set h = pal_listener_accept(listener.handle)
-    return (Socket handle: h)
-}
-
-pub fn listener_close: (listener :Listener) {
-    use pal_listener_close(listener.handle)
+    pub fn close: (listener :Listener) {
+        use pal_listener_close(listener.handle)
+    }
 }

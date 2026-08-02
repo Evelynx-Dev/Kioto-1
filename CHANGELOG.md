@@ -1,5 +1,48 @@
 # kioto changelog
 
+## [2.4.4] — 2026-08-01 (parent/child namespace refactor)
+
+### Changed
+
+- **All core modules adopt the `mire` parent/child namespace pattern**: a parent
+  function groups variant functions inside (`strings::from::i64`, `proc::run::output`).
+  Internal calls to sibling child functions require the full module path
+  (e.g. `fs::path::name(path)` inside `path::ext`).
+- `strings::from::bool` now takes `:bool` (was `:i64`), matching `mire::str` semantics.
+- `env::get` renamed to `env::var`.
+- `fs`: path ops grouped under `path::` (`join`/`dir`/`name`/`ext`), handles under
+  `root::`/`dir::`/`file::` (`file::open::read`, `file::read`, `dir::next`, ...).
+- `async`: channels grouped under `channel::`, task helpers under `task::`.
+- `proc`: launching variants under `run::` (`create`/`spawn`/`output`/`shell`),
+  streams under `stream::` (`input`/`output`/`error`).
+- `time`: `now_ms`/`now_ns` become `now::ms`/`now::ns`.
+- `net`: sockets under `socket::`, listeners under `listener::`.
+- `crypto::sign::ed25519`: grouped into `secret::` (`new`/`public`/`sign`/`close`)
+  and `public::` (`verify`/`close`).
+- `log` no longer dereferences `&str` parameters (`"[INFO] " + msg`).
+- `README.md` tables and `tests/pal_v4_smoke.mire` updated to the new names.
+
+## [2.4.4+fixes] — 2026-08-01 (implementation hardening)
+
+### Fixed
+
+- **`fs::read` memory safety**: `pal_fs_read_file` returned a raw `malloc` buffer
+  that the runtime cannot free (leak) and could return string literals (dangling
+  risk on free). Added `rt_fs_read_bytes` bridge in `runtime/helpers.c` that
+  reads through `rt_read_bytes` and copies into runtime-managed storage;
+  `fs::read` now returns an owned `str` (was `&str`).
+- **`math::complex::div`**: division by zero on the denominator now returns
+  `zero()` instead of `inf`/`nan`.
+- **`cli::parse`**: replaced builtin `len(*raw)` with `vec::len(raw)` (builtin
+  `len` returns 1 on vectors, silently truncating args) and fixed the `--flag`
+  slice to use `len - 2` instead of the full string length.
+
+### Added
+
+- `tests/pal_v4_smoke.mire`: `test_fs_read_managed`, `test_complex_div_zero`,
+  `test_cli_parse_flags`.
+
+
 ## [2.4.3] — 2026-08-01 (collections migrated to mire::vec / mire::map)
 
 ### Removed

@@ -2,11 +2,11 @@ module ed25519
 
 load kioto::strings
 
-struct SecretKey {
+pub struct SecretKey {
     handle :i64
 }
 
-struct PublicKey {
+pub struct PublicKey {
     handle :i64
 }
 
@@ -19,34 +19,38 @@ extern fn pal_pubkey_free: (pubkey :i64) lib "c"
 
 cons PAL_CRYPTO_ED25519 = 1 :i64
 
-pub fn keypair: () :SecretKey {
-    set h = pal_secret_create(PAL_CRYPTO_ED25519)
-    return (SecretKey handle: h)
+pub fn secret: () {
+    pub fn new: () :SecretKey {
+        set h = pal_secret_create(PAL_CRYPTO_ED25519)
+        return (SecretKey handle: h)
+    }
+
+    pub fn public: (secret :SecretKey) :PublicKey {
+        set h = pal_secret_export_public(secret.handle)
+        return (PublicKey handle: h)
+    }
+
+    pub fn sign: (secret :SecretKey, msg :&str) :str {
+        set msg_len = strings::len(msg)
+        set buf = strings::repeat("\0" 64) :str mut
+        set sig_len = pal_secret_sign(secret.handle, msg, msg_len, buf, 64)
+        if sig_len == 64 { return buf }
+        return ""
+    }
+
+    pub fn close: (secret :SecretKey) {
+        use pal_secret_close(secret.handle)
+    }
 }
 
-pub fn secret_to_pub: (secret :SecretKey) :PublicKey {
-    set h = pal_secret_export_public(secret.handle)
-    return (PublicKey handle: h)
-}
+pub fn public: () {
+    pub fn verify: (pubkey :PublicKey, msg :&str, sig :&str) :bool {
+        set msg_len = strings::len(msg)
+        set sig_len = strings::len(sig)
+        return pal_pubkey_verify(pubkey.handle, msg, msg_len, sig, sig_len)
+    }
 
-pub fn sign: (secret :SecretKey, msg :&str) :str {
-    set msg_len = strings::len(msg)
-    set buf = strings::repeat("\0" 64) :str mut
-    set sig_len = pal_secret_sign(secret.handle, msg, msg_len, buf, 64)
-    if sig_len == 64 { return buf }
-    return ""
-}
-
-pub fn verify: (pubkey :PublicKey, msg :&str, sig :&str) :bool {
-    set msg_len = strings::len(msg)
-    set sig_len = strings::len(sig)
-    return pal_pubkey_verify(pubkey.handle, msg, msg_len, sig, sig_len)
-}
-
-pub fn close_secret: (secret :SecretKey) {
-    use pal_secret_close(secret.handle)
-}
-
-pub fn close_pubkey: (pubkey :PublicKey) {
-    use pal_pubkey_free(pubkey.handle)
+    pub fn close: (pubkey :PublicKey) {
+        use pal_pubkey_free(pubkey.handle)
+    }
 }
