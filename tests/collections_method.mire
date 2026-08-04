@@ -1,0 +1,27 @@
+load mire::vec
+load mire::map
+load mire::str
+
+@[test]
+pub fn test_vec_method_syntax: () :bool {
+    set v = [10 20 30] :vec[i64]
+    return v.len() == 3
+}
+
+@[test]
+pub fn test_vec_get_method: () :bool {
+    set v = [10 20 30] :vec[i64]
+    return v.get::i64(1) == 20
+}
+
+@[test]
+pub fn test_map_method_syntax: () :bool {
+    set m = {"a": 1, "b": 2} :map[str i64]
+    return m.len() == 2
+}
+
+@[test]
+pub fn test_str_method_syntax: () :bool {
+    set s = "hello"
+    return s.len() == 5
+}
