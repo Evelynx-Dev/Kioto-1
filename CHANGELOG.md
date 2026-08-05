@@ -1,5 +1,10 @@
 # kioto changelog
 
+## [2.4.5] — 2026-08-04 (.method() syntax tests)
+
+### Added
+- `tests/collections_method.mire`: regression tests for `.method()` syntax on vec, map, and str collections (`test_vec_method_syntax`, `test_vec_get_method`, `test_map_method_syntax`, `test_str_method_syntax`).
+
 ## [2.4.4] — 2026-08-01 (parent/child namespace refactor)
 
 ### Changed
