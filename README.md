@@ -192,7 +192,9 @@ Process management. Handles are PAL v4 `Process` resources.
 | `run::create(cmd, args, flags, stdin_ch, stdout_ch, stderr_ch)` | `Process` | Spawn with explicit argv and channel handles |
 | `run::spawn(cmd, args)` | `i64` | Spawn, wait, and return the exit code (no shell) |
 | `run::output(cmd, args)` | `str` | Capture stdout via argv (no shell) |
-| `run::shell(cmd)` | `str` | Run via shell and capture output (escape hatch) |
+| `run::output_cwd(cmd, args, cwd, merge_err)` | `str` | Capture stdout via argv in a working directory, optionally merging stderr |
+| `run::last_exit()` | `i64` | Exit code of the last argv capture (0 = success, 126 = bad cwd, 127 = spawn failure) |
+| `run::read_line()` | `str` | Read one line from the controlling terminal (no subprocess; returns `"y"` in non-interactive contexts) |
 | `wait(process)` | `i64` | Wait for a process handle |
 | `kill(process)` | `bool` | Kill a process handle |
 | `close(process)` | — | Release a process handle |

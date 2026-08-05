@@ -1,5 +1,27 @@
 # kioto changelog
 
+## [2.4.6] — 2026-08-05 (shell migration: proc::run::shell removed)
+
+### Removed
+- **`proc::run::shell` removed**: the last Mire surface that invoked a shell
+  (`/bin/sh -c`) is gone. All process launching is now argv-safe (`fork`+`execvp`).
+  Replaced by:
+  - `proc::run::output_cwd(cmd, args, cwd, merge_err)` — argv capture with
+    optional working directory and stderr merge.
+  - `proc::run::last_exit()` — exit code of the last capture.
+  - `proc::run::read_line()` — reads the controlling terminal directly (no
+    subprocess; returns `"y"` in non-interactive contexts).
+
+### Changed
+- **`PAL_ALLOW_LEGACY_SHELL` default flipped to `0`** in avenys `pal.h`.
+  The runtime shell functions (`pal_proc_system`, `pal_proc_capture*`,
+  `rt_proc_capture_output`) are compiled out by default.
+- **kioto `core/proc/mod.mire`**: removed `proc::run::shell` and its
+  `rt_proc_capture_output` extern; added `rt_proc_capture_argv2`,
+  `rt_proc_last_exit`, `rt_read_tty` externs and the `output_cwd`,
+  `last_exit`, `read_line` APIs.
+- `meta.toml` bumped to 2.4.6 with `language = "mire avenys v3.24.26"`.
+
 ## [2.4.5] — 2026-08-05 (.method() syntax tests + strict security mode)
 
 ### Added

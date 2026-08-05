@@ -1,6 +1,6 @@
 [package]
 name = "kioto"
-version = "2.4.5"
+version = "2.4.6"
 compiler = "mire"
 abi = 1
-language = "mire avenys v3.24.24"
+language = "mire avenys v3.24.26"
