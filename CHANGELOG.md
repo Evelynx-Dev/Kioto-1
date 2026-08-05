@@ -1,9 +1,12 @@
 # kioto changelog
 
-## [2.4.5] — 2026-08-04 (.method() syntax tests)
+## [2.4.5] — 2026-08-05 (.method() syntax tests + strict security mode)
 
 ### Added
 - `tests/collections_method.mire`: regression tests for `.method()` syntax on vec, map, and str collections (`test_vec_method_syntax`, `test_vec_get_method`, `test_map_method_syntax`, `test_str_method_syntax`).
+
+### Changed
+- **Manifest enables `mode = "strict"`** (`owl.toml` `[security]`): kioto's externs are the PAL and runtime bridges (`pal_*`, `rt_*`), allowlisted with `externs = ["rt_*", "pal_*"]` and `extern_libs = ["c"]`. mire is trusted at the `macros` tier (`deps = { mire = "macros" }`) so `assert!`/`dbg!` auto-scope into kioto's tests/code. `meta.toml` bumped to 2.4.5 with `language = "mire avenys v3.24.24"`.
 
 ## [2.4.4] — 2026-08-01 (parent/child namespace refactor)
 
