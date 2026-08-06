@@ -1,5 +1,7 @@
 module fs
 
+load kioto::strings
+
 pub struct Root {
     handle :i64
 }
@@ -28,7 +30,11 @@ extern fn pal_fs_exists: (path :&str) :bool lib "c"
 extern fn pal_fs_mkdir: (path :&str) :bool lib "c"
 extern fn pal_fs_rmdir: (path :&str) :bool lib "c"
 extern fn pal_fs_unlink: (path :&str) :bool lib "c"
+extern fn pal_fs_remove: (path :&str) :bool lib "c"
+extern fn pal_root_remove: (root :i64, path :&str) :bool lib "c"
+extern fn pal_last_error: () :i64 lib "c"
 extern fn rt_fs_read_bytes: (path :&str) :str lib "c"
+extern fn rt_vecs_push_ptr: (list :vec[str], value :str) :vec[str] lib "c"
 extern fn rt_strings_char_at: (s :&str, i :i64) :i64 lib "c"
 extern fn rt_strings_substr: (s :&str, start :i64, len :i64) :str lib "c"
 extern fn rt_string_concat: (left :&str, right :&str) :str lib "c"
@@ -42,6 +48,20 @@ cons PAL_SEEK_BEGIN = 0 :i32
 cons PAL_SEEK_CURRENT = 1 :i32
 cons PAL_SEEK_END = 2 :i32
 
+// PAL error codes (pal.h pal_error_code_t). fs::last_error() returns these.
+cons PAL_ERR_OK = 0 :i64
+cons PAL_ERR_NOT_FOUND = 1 :i64
+cons PAL_ERR_PERMISSION = 2 :i64
+cons PAL_ERR_IO = 3 :i64
+cons PAL_ERR_INVALID = 4 :i64
+cons PAL_ERR_NO_MEM = 5 :i64
+cons PAL_ERR_BUSY = 6 :i64
+cons PAL_ERR_UNSUPPORTED = 7 :i64
+cons PAL_ERR_ALREADY_EXISTS = 8 :i64
+cons PAL_ERR_INVALID_HANDLE = 9 :i64
+cons PAL_ERR_OWNERSHIP = 10 :i64
+cons PAL_ERR_NOT_EMPTY = 11 :i64
+
 pub fn exists: (path :&str) :bool {
     return pal_fs_exists(path)
 }
@@ -52,7 +72,7 @@ pub fn read: (path :&str) :str {
 
 pub fn write: (path :&str, data :&str) {
     set root = pal_root_open(".")
-    set f = pal_file_open(root, path, (PAL_OPEN_WRITE + PAL_OPEN_CREATE + PAL_OPEN_TRUNCATE :i32))
+    set f = pal_file_open(root, path, 14 :i32)
     pal_file_write(f, data, len(data))
     pal_file_close(f)
     pal_root_close(root)
@@ -60,6 +80,93 @@ pub fn write: (path :&str, data :&str) {
 
 pub fn drop: (path :&str) :bool {
     return pal_fs_unlink(path)
+}
+
+// ── remove / remove_all (capability-based, symlinks never followed) ─────────
+// pal_root_remove unlinks a SINGLE entry (file, symlink, or empty dir) relative
+// to a root handle; a trailing symlink is unlinked, never followed. We open the
+// root on the target's PARENT directory and pass the basename (plus descendants
+// during recursion) as the relative path, so every PAL call re-validates inside
+// the sandbox. Recursive removal is composed here over pal_dir_open +
+// pal_root_remove — never in PAL.
+
+// Private: recursively remove everything under `rel` inside `root`.
+fn fs_remove_recursive: (root :i64, rel :&str) :bool {
+    set d = pal_dir_open(root, rel)
+    if d <= 0 {
+        return pal_root_remove(root, rel)
+    }
+    set entry = strings::repeat("\0" 256) :str mut
+    set n = pal_dir_next_name(d, entry, 256) :i64 mut
+    while n > 0 {
+        set name = rt_strings_substr(entry, 0, n)
+        if name != "." {
+            if name != ".." {
+                set child = fs::path::join(rel, name)
+                set ok = fs_remove_recursive(root, child)
+                if !ok {
+                    pal_dir_close(d)
+                    return false
+                }
+            }
+        }
+        set n = pal_dir_next_name(d, entry, 256)
+    }
+    pal_dir_close(d)
+    return pal_root_remove(root, rel)
+}
+
+// Remove a single entry (file, symlink, or empty directory). A symlink is
+// unlinked — never followed — even when it points outside the path's parent.
+// Returns false and leaves fs::last_error() set to the PAL error code
+// (PAL_ERR_NOT_EMPTY for a non-empty directory).
+pub fn remove: (path :&str) :bool {
+    set root = pal_root_open(fs::path::dir(path))
+    if root <= 0 {
+        return false
+    }
+    set ok = pal_root_remove(root, fs::path::name(path))
+    pal_root_close(root)
+    return ok
+}
+
+// Recursively remove a file, symlink, or directory tree. Intermediate and
+// trailing symlinks are never followed (the sandbox rejects them); a symlink
+// inside the tree is deleted without entering its target.
+pub fn remove_all: (path :&str) :bool {
+    set root = pal_root_open(fs::path::dir(path))
+    if root <= 0 {
+        return false
+    }
+    set ok = fs_remove_recursive(root, fs::path::name(path))
+    pal_root_close(root)
+    return ok
+}
+
+// Last PAL error code from a failed fs operation (see PAL_ERR_* above).
+// Read immediately after a failed call; 0 (PAL_ERR_OK) means no error.
+pub fn last_error: () :i64 {
+    return pal_last_error()
+}
+
+pub fn list: (path :&str) :vec[str] {
+    set root = pal_root_open(".")
+    set d = pal_dir_open(root, path)
+    set result = [] :vec[str] mut
+    set entry = strings::repeat("\0" 256) :str mut
+    set n = pal_dir_next_name(d, entry, 256) :i64 mut
+    while n > 0 {
+        set name = rt_strings_substr(entry, 0, n)
+        set result = rt_vecs_push_ptr(result, name)
+        set n = pal_dir_next_name(d, entry, 256)
+    }
+    pal_dir_close(d)
+    pal_root_close(root)
+    return result
+}
+
+pub fn mkdir: (path :&str) :bool {
+    return pal_fs_mkdir(path)
 }
 
 // ── path ────────────────────────────────────────────────────────
@@ -148,22 +255,22 @@ pub fn root: () {
 pub fn file: () {
     pub fn open: () {
         pub fn read: (root :Root, path :&str) :File {
-            set h = pal_file_open(root.handle, path, PAL_OPEN_READ)
+            set h = pal_file_open(root.handle, path, 1 :i32)
             return (File handle: h)
         }
 
         pub fn write: (root :Root, path :&str) :File {
-            set h = pal_file_open(root.handle, path, PAL_OPEN_WRITE)
+            set h = pal_file_open(root.handle, path, 2 :i32)
             return (File handle: h)
         }
 
         pub fn create: (root :Root, path :&str) :File {
-            set h = pal_file_open(root.handle, path, (PAL_OPEN_READ + PAL_OPEN_WRITE + PAL_OPEN_CREATE :i32))
+            set h = pal_file_open(root.handle, path, 7 :i32)
             return (File handle: h)
         }
 
         pub fn truncate: (root :Root, path :&str) :File {
-            set h = pal_file_open(root.handle, path, (PAL_OPEN_READ + PAL_OPEN_WRITE + PAL_OPEN_CREATE + PAL_OPEN_TRUNCATE :i32))
+            set h = pal_file_open(root.handle, path, 15 :i32)
             return (File handle: h)
         }
     }

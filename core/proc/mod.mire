@@ -38,7 +38,7 @@ pub fn run: () {
     pub fn spawn: (cmd :&str, args :vec[str]) :i64 {
         set argv = rt_build_argv(cmd, args)
         set argc = rt_vec_len(args) + 1
-        set h = pal_proc_create(argv, PAL_SPAWN_WAIT, 0, 0, 0)
+        set h = pal_proc_create(argv, 1 :i32, 0, 0, 0)
         use rt_free_argv(argv, argc)
         if h <= 0 { return -1 }
         set exit_code = pal_proc_wait(h)

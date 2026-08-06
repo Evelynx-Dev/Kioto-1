@@ -1,0 +1,125 @@
+load kioto
+load mire::vec
+
+// fs::remove / fs::remove_all — symlink-escape adversarial suite.
+// Invariants under test:
+//   * a symlink is unlinked, NEVER followed (even pointing outside the root);
+//   * fs::remove on a non-empty directory fails with PAL_ERR_NOT_EMPTY (11);
+//   * fs::remove_all recursion deletes a tree containing symlinks without
+//     ever entering their external targets.
+// Symlinks are created with `/bin/ln -s` (argv-based, no shell).
+
+fn setup_dir: (dir :&str) {
+    fs::remove_all(dir)
+    fs::mkdir(dir)
+}
+
+@[test]
+pub fn test_remove_file: () :bool {
+    setup_dir("/tmp/fsr_file")
+    fs::write("/tmp/fsr_file/data.txt" "payload")
+    set ok = fs::remove("/tmp/fsr_file/data.txt")
+    return ok && !fs::exists("/tmp/fsr_file/data.txt")
+}
+
+@[test]
+pub fn test_remove_empty_dir: () :bool {
+    setup_dir("/tmp/fsr_emptydir")
+    set ok = fs::remove("/tmp/fsr_emptydir")
+    return ok && !fs::exists("/tmp/fsr_emptydir")
+}
+
+@[test]
+pub fn test_remove_missing_fails: () :bool {
+    fs::remove_all("/tmp/fsr_missing")
+    set ok = fs::remove("/tmp/fsr_missing/nope")
+    set code = fs::last_error()
+    return !ok && code == 1
+}
+
+@[test]
+pub fn test_remove_nonempty_dir_fails: () :bool {
+    setup_dir("/tmp/fsr_nonempty")
+    fs::write("/tmp/fsr_nonempty/f.txt" "x")
+    set failed = !fs::remove("/tmp/fsr_nonempty")
+    set code = fs::last_error()
+    set still = fs::exists("/tmp/fsr_nonempty")
+    set cleaned = fs::remove_all("/tmp/fsr_nonempty")
+    return failed && code == 11 && still && cleaned && !fs::exists("/tmp/fsr_nonempty")
+}
+
+@[test]
+pub fn test_remove_all_nested_tree: () :bool {
+    setup_dir("/tmp/fsr_tree")
+    fs::mkdir("/tmp/fsr_tree/a")
+    fs::mkdir("/tmp/fsr_tree/a/b")
+    fs::write("/tmp/fsr_tree/a/b/one.txt" "1")
+    fs::write("/tmp/fsr_tree/a/b/two.txt" "2")
+    fs::write("/tmp/fsr_tree/root.txt" "r")
+    set ok = fs::remove_all("/tmp/fsr_tree")
+    return ok && !fs::exists("/tmp/fsr_tree")
+}
+
+@[test]
+pub fn test_remove_all_on_file: () :bool {
+    setup_dir("/tmp/fsr_single")
+    fs::write("/tmp/fsr_single/f.txt" "x")
+    set ok = fs::remove_all("/tmp/fsr_single/f.txt")
+    return ok && fs::exists("/tmp/fsr_single") && !fs::exists("/tmp/fsr_single/f.txt")
+}
+
+@[test]
+pub fn test_remove_symlink_to_outside_file: () :bool {
+    setup_dir("/tmp/fsr_symfile")
+    setup_dir("/tmp/fsr_symfile_target")
+    fs::write("/tmp/fsr_symfile_target/secret.txt" "secret")
+    set out = proc::run::output("/bin/ln" ["-s" "/tmp/fsr_symfile_target/secret.txt" "/tmp/fsr_symfile/link"] :vec[str])
+    set ok = fs::remove("/tmp/fsr_symfile/link")
+    return ok &&
+        !fs::exists("/tmp/fsr_symfile/link") &&
+        fs::exists("/tmp/fsr_symfile_target/secret.txt") &&
+        strings::trim(fs::read("/tmp/fsr_symfile_target/secret.txt")) == "secret"
+}
+
+@[test]
+pub fn test_remove_symlink_to_outside_dir: () :bool {
+    setup_dir("/tmp/fsr_symdir")
+    setup_dir("/tmp/fsr_symdir_target")
+    fs::write("/tmp/fsr_symdir_target/keep.txt" "keep")
+    set out = proc::run::output("/bin/ln" ["-s" "/tmp/fsr_symdir_target" "/tmp/fsr_symdir/link"] :vec[str])
+    set ok = fs::remove("/tmp/fsr_symdir/link")
+    return ok &&
+        !fs::exists("/tmp/fsr_symdir/link") &&
+        fs::exists("/tmp/fsr_symdir_target/keep.txt")
+}
+
+@[test]
+pub fn test_remove_all_top_symlink_not_followed: () :bool {
+    setup_dir("/tmp/fsr_toplink")
+    setup_dir("/tmp/fsr_toplink_target")
+    fs::write("/tmp/fsr_toplink_target/keep.txt" "keep")
+    set out = proc::run::output("/bin/ln" ["-s" "/tmp/fsr_toplink_target" "/tmp/fsr_toplink/link"] :vec[str])
+    set ok = fs::remove_all("/tmp/fsr_toplink/link")
+    return ok &&
+        !fs::exists("/tmp/fsr_toplink/link") &&
+        fs::exists("/tmp/fsr_toplink_target/keep.txt")
+}
+
+@[test]
+pub fn test_remove_all_symlink_inside_tree: () :bool {
+    // The adversarial case: a symlink inside a subdirectory points outside.
+    // remove_all must delete the link + the tree and NEVER enter the target.
+    setup_dir("/tmp/fsr_leak")
+    setup_dir("/tmp/fsr_leak_target")
+    fs::write("/tmp/fsr_leak_target/secret.txt" "secret")
+    fs::mkdir("/tmp/fsr_leak/root")
+    fs::mkdir("/tmp/fsr_leak/root/sub")
+    fs::write("/tmp/fsr_leak/root/sub/inner.txt" "inner")
+    fs::write("/tmp/fsr_leak/root/outer.txt" "outer")
+    set out = proc::run::output("/bin/ln" ["-s" "/tmp/fsr_leak_target" "/tmp/fsr_leak/root/sub/leak"] :vec[str])
+    set ok = fs::remove_all("/tmp/fsr_leak/root")
+    return ok &&
+        !fs::exists("/tmp/fsr_leak/root") &&
+        fs::exists("/tmp/fsr_leak_target/secret.txt") &&
+        strings::trim(fs::read("/tmp/fsr_leak_target/secret.txt")) == "secret"
+}

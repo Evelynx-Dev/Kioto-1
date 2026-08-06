@@ -21,7 +21,7 @@ cons PAL_SOCKET_TCP = 1 :i32
 // ── socket ──────────────────────────────────────────────────────
 pub fn socket: () {
     pub fn connect: (host :&str, port :u16) :Socket {
-        set h = pal_socket_connect(host, port, PAL_SOCKET_TCP)
+        set h = pal_socket_connect(host, port, 1 :i32)
         return (Socket handle: h)
     }
 
@@ -41,7 +41,7 @@ pub fn socket: () {
 // ── listener ────────────────────────────────────────────────────
 pub fn listener: () {
     pub fn bind: (port :u16) :Listener {
-        set h = pal_listener_bind(port, PAL_SOCKET_TCP)
+        set h = pal_listener_bind(port, 1 :i32)
         return (Listener handle: h)
     }
 

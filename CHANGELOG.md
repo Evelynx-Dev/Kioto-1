@@ -1,5 +1,34 @@
 # kioto changelog
 
+## [2.4.7] — 2026-08-06 (capability-based fs removal: remove / remove_all)
+
+### Added
+- **`fs::remove(path)`** — removes a single entry (file, symlink, or empty
+  directory) via the new PAL capability primitive `pal_root_remove`. A symlink
+  is unlinked, never followed; a non-empty directory fails with
+  `PAL_ERR_NOT_EMPTY` (11).
+- **`fs::remove_all(path)`** — recursively removes a file/symlink/dir tree.
+  Recursion is composed in kioto over `pal_dir_open` + `pal_root_remove`;
+  intermediate and trailing symlinks are never followed (the sandbox rejects
+  them), so an external target a symlink points at is always left intact.
+- **`fs::last_error()`** — returns the last PAL error code from a failed fs
+  operation (0 = `PAL_ERR_OK`; 1 = `NOT_FOUND`, 2 = `PERMISSION`, 11 =
+  `NOT_EMPTY`, ...). Read immediately after a failed call.
+
+### Changed
+- `core/fs/mod.mire` now declares `pal_root_remove`, `pal_fs_remove`, and
+  `pal_last_error` externs. Removal no longer goes through shell helpers.
+- Error-code fidelity: `pal_root_open` on a missing parent now reports
+  `PAL_ERR_NOT_FOUND` (the PAL open-family dispatch maps errno instead of a
+  hard-coded `PAL_ERR_IO`).
+
+### Removed
+- Nothing removed.
+
+### Tests
+- `tests/fs_remove.mire` — 10 tests covering single-entry removal, missing /
+  non-empty failures with exact error codes, nested `remove_all`, and four
+  symlink-escape adversarial cases (external targets verified intact).
 ## [2.4.6] — 2026-08-05 (shell migration: proc::run::shell removed)
 
 ### Removed

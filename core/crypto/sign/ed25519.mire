@@ -21,7 +21,7 @@ cons PAL_CRYPTO_ED25519 = 1 :i64
 
 pub fn secret: () {
     pub fn new: () :SecretKey {
-        set h = pal_secret_create(PAL_CRYPTO_ED25519)
+        set h = pal_secret_create(1 :i64)
         return (SecretKey handle: h)
     }
 

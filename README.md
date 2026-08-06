@@ -148,6 +148,9 @@ handle-based functions use the PAL v4 `Root`/`File`/`Dir` resource handles.
 | `write(path, data)` | — | Write file (create/truncate) |
 | `exists(path)` | `bool` | Check if path exists |
 | `drop(path)` | `bool` | Delete file |
+| `remove(path)` | `bool` | Remove a single entry (file, symlink, or empty dir); symlinks are never followed |
+| `remove_all(path)` | `bool` | Recursively remove a file/symlink/dir tree; never follows symlinks |
+| `last_error()` | `i64` | Last PAL error code (e.g. 11 = `PAL_ERR_NOT_EMPTY`); read after a failure |
 | `path::join(a, b)` | `&str` | Join path components |
 | `path::dir(path)` | `&str` | Parent directory |
 | `path::name(path)` | `&str` | File name from path |
@@ -168,6 +171,56 @@ handle-based functions use the PAL v4 `Root`/`File`/`Dir` resource handles.
 | `file::seek(file, offset, whence)` | `i64` | Seek within a file |
 | `file::size(file)` | `i64` | File size in bytes |
 | `file::close(file)` | — | Close a file handle |
+
+### Removing files & directories
+
+`fs::remove` unlinks a single entry; `fs::remove_all` removes a whole tree.
+**Symlinks are never followed** — a trailing link is unlinked, and a link
+inside a tree is deleted without entering its target, so external targets a
+symlink points at are always left intact. Removal runs through the PAL
+capability primitive `pal_root_remove` (resolve the parent, then `unlinkat`);
+no path string is ever rebuilt outside the sandbox.
+
+```mire
+load kioto
+
+// Remove one file (or symlink, or empty directory).
+set ok = fs::remove("/tmp/cache/stale.txt")
+if !ok {
+    set code = fs::last_error()   // 11 = PAL_ERR_NOT_EMPTY, etc.
+    use dasu("failed: {code}")
+}
+
+// Remove a whole tree recursively.
+set ok2 = fs::remove_all("/tmp/scratch/build-out")
+
+// A non-empty directory is REFUSED by fs::remove (never recursive):
+fs::mkdir("/tmp/data")
+fs::write("/tmp/data/keep.txt" "x")
+set refused = !fs::remove("/tmp/data")            // false → true
+set code = fs::last_error()                       // 11 (NOT_EMPTY)
+set cleaned = fs::remove_all("/tmp/data")         // recursive → true
+```
+
+Symlink-safety in practice — an outside directory is never walked:
+
+```mire
+// target lives OUTSIDE the tree being removed:
+fs::mkdir("/tmp/work")            // fs::mkdir does NOT create parents
+fs::mkdir("/tmp/work/target")
+fs::write("/tmp/work/target/secret.txt" "secret")
+fs::mkdir("/tmp/work/tree")
+fs::mkdir("/tmp/work/tree/sub")
+// /tmp/work/tree/sub/link → /tmp/work/target  (absolute symlink)
+proc::run::output("/bin/ln" ["-s" "/tmp/work/target" "/tmp/work/tree/sub/link"] :vec[str])
+
+set ok3 = fs::remove_all("/tmp/work/tree")        // tree gone…
+set target_intact = fs::exists("/tmp/work/target/secret.txt") // …target intact
+```
+
+`fs::remove` / `fs::remove_all` return `bool`; on `false`, call
+`fs::last_error()` immediately for the PAL error code. See
+`kioto/tests/fs_remove.mire` for the full adversarial suite.
 
 ---
 
