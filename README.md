@@ -147,6 +147,7 @@ handle-based functions use the PAL v4 `Root`/`File`/`Dir` resource handles.
 | `read(path)` | `str` | Read entire file (owned copy) |
 | `write(path, data)` | — | Write file (create/truncate) |
 | `exists(path)` | `bool` | Check if path exists |
+| `is_file(path)` | `bool` | Check if path is a regular file |
 | `drop(path)` | `bool` | Delete file |
 | `remove(path)` | `bool` | Remove a single entry (file, symlink, or empty dir); symlinks are never followed |
 | `remove_all(path)` | `bool` | Recursively remove a file/symlink/dir tree; never follows symlinks |
@@ -548,7 +549,7 @@ pub fn main: () {
 
 ## Version
 
-**2.4.4** — See [CHANGELOG.md](CHANGELOG.md) for the migration guide.
+**2.4.8** — See [CHANGELOG.md](CHANGELOG.md) for the migration guide.
 
 ## Verification
 

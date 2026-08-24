@@ -31,6 +31,7 @@ extern fn pal_fs_mkdir: (path :&str) :bool lib "c"
 extern fn pal_fs_rmdir: (path :&str) :bool lib "c"
 extern fn pal_fs_unlink: (path :&str) :bool lib "c"
 extern fn pal_fs_remove: (path :&str) :bool lib "c"
+extern fn pal_fs_is_file: (path :&str) :bool lib "c"
 extern fn pal_root_remove: (root :i64, path :&str) :bool lib "c"
 extern fn pal_last_error: () :i64 lib "c"
 extern fn rt_fs_read_bytes: (path :&str) :str lib "c"
@@ -64,6 +65,10 @@ cons PAL_ERR_NOT_EMPTY = 11 :i64
 
 pub fn exists: (path :&str) :bool {
     return pal_fs_exists(path)
+}
+
+pub fn is_file: (path :&str) :bool {
+    return pal_fs_is_file(path)
 }
 
 pub fn read: (path :&str) :str {

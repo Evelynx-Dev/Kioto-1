@@ -1,5 +1,17 @@
 # kioto changelog
 
+## [2.4.8] — 2026-08-24 (fs::is_file + module declarations)
+
+### Added
+- **`fs::is_file(path)`** — checks whether a path is a regular file via the
+  new `pal_fs_is_file` PAL primitive. Returns `bool`.
+
+### Fixed
+- All 9 submodules (`config`, `drawing`, `files`, `input`, `textops`,
+  `themes`, `tiling`, `tree`, `ttf`) now declare their `module` name as the
+  first line. Without this, constants like `DISPLAY_BLOCK`, `ACCENT_W`,
+  `USE_TTF` were invisible to the compiler within their own module.
+
 ## [2.4.7] — 2026-08-06 (capability-based fs removal: remove / remove_all)
 
 ### Added
