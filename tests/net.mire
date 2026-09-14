@@ -1,0 +1,42 @@
+load kioto
+
+@[test]
+pub fn test_udp_loopback: () :bool {
+    set listener = net::listener::bind::udp(39123 :u16)
+    if listener.handle <= 0 { return false }
+    set sender = net::socket::connect::udp("127.0.0.1" 39123 :u16)
+    if sender.handle <= 0 {
+        return false
+    }
+    set sent = net::socket::send(sender "udp-ping")
+    set buffer = strings::repeat("\0" 64) :str mut
+    set received = net::listener::recv(listener buffer 64)
+    set replied = net::listener::send(listener "udp-reply")
+    set echoed = strings::repeat("\0" 64) :str mut
+    set echoed_len = net::socket::recv(sender echoed 64)
+    net::socket::close(sender)
+    net::listener::close(listener)
+    set payload_ok = strings::substr(buffer 0 8) == "udp-ping"
+    set reply_ok = strings::substr(echoed 0 9) == "udp-reply"
+    return sent == 8 && received == 8 && payload_ok && replied == 9 && echoed_len == 9 && reply_ok
+}
+
+@[test]
+pub fn test_udp_invalid_port_is_rejected: () :bool {
+    set socket = net::socket::connect::udp("127.0.0.1" 0 :u16)
+    if socket.handle > 0 {
+        net::socket::close(socket)
+        return false
+    }
+    return true
+}
+
+@[test]
+pub fn test_tcp_invalid_port_is_rejected: () :bool {
+    set socket = net::socket::connect::tcp("127.0.0.1" 0 :u16)
+    if socket.handle > 0 {
+        net::socket::close(socket)
+        return false
+    }
+    return true
+}

@@ -43,6 +43,7 @@ pub fn decode: (s :&str) :vec[i64] {
     set len = strings::len(s)
     set result = [] :vec[i64] mut
     if len == 0 { return result }
+    if len % 4 != 0 { return result }
     set i = 0 :i64 mut
     while i < len {
         set v0 = char_value(strings::substr(s i 1))
@@ -52,6 +53,8 @@ pub fn decode: (s :&str) :vec[i64] {
         if v0 < 0 || v1 < 0 { return [] :vec[i64] }
         set pad2 = decode_is_pad(s, i + 2, len)
         set pad3 = decode_is_pad(s, i + 3, len)
+        if pad2 && !pad3 { return [] :vec[i64] }
+        if (pad2 || pad3) && i + 4 < len { return [] :vec[i64] }
         if !pad2 && v2 < 0 { return [] :vec[i64] }
         if !pad3 && v3 < 0 { return [] :vec[i64] }
         set triple = (v0 << 18) | (v1 << 12) | (v2 << 6) | v3

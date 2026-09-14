@@ -1,0 +1,31 @@
+load kioto
+load mire::vec
+
+@[test]
+pub fn test_base64_rfc4648_vectors: () :bool {
+    set empty = [] :vec[i64]
+    set f = [102] :vec[i64]
+    set fo = [102 111] :vec[i64]
+    set foo = [102 111 111] :vec[i64]
+    return crypto::encode::base64::encode(empty) == "" &&
+        crypto::encode::base64::encode(f) == "Zg==" &&
+        crypto::encode::base64::encode(fo) == "Zm8=" &&
+        crypto::encode::base64::encode(foo) == "Zm9v"
+}
+
+@[test]
+pub fn test_base64_roundtrip: () :bool {
+    set source = [77 105 114 101 32 110 101 116] :vec[i64]
+    set encoded = crypto::encode::base64::encode(source)
+    set decoded = crypto::encode::base64::decode(encoded)
+    return vec::len(decoded) == 8 &&
+        vec::get::i64(decoded 0) == 77 &&
+        vec::get::i64(decoded 7) == 116
+}
+
+@[test]
+pub fn test_base64_rejects_malformed_padding: () :bool {
+    return vec::len(crypto::encode::base64::decode("Zg=Z")) == 0 &&
+        vec::len(crypto::encode::base64::decode("Zg")) == 0 &&
+        vec::len(crypto::encode::base64::decode("Zg==AAAA")) == 0
+}
