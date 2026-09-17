@@ -3,3 +3,4 @@ load kioto::crypto::hash
 load kioto::crypto::encode
 load kioto::crypto::random
 load kioto::crypto::sign
+load kioto::crypto::checksum

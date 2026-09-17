@@ -1,0 +1,10 @@
+module trig
+load kioto::math::_externs
+
+pub fn sin: (value :f64) :f64 { return rt_math_sin(value) }
+pub fn cos: (value :f64) :f64 { return rt_math_cos(value) }
+pub fn tan: (value :f64) :f64 { return rt_math_tan(value) }
+pub fn asin: (value :f64) :f64 { return rt_math_asin(value) }
+pub fn acos: (value :f64) :f64 { return rt_math_acos(value) }
+pub fn atan: (value :f64) :f64 { return rt_math_atan(value) }
+pub fn atan2: (y :f64, x :f64) :f64 { return rt_math_atan2(y, x) }

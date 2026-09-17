@@ -1,0 +1,11 @@
+module float
+load kioto::math::_externs
+
+pub fn ceil: (value :f64) :i64 { return rt_math_ceil(value) }
+pub fn floor: (value :f64) :i64 { return rt_math_floor(value) }
+pub fn round: (value :f64) :i64 { return rt_math_round(value) }
+pub fn trunc: (value :f64) :i64 { return rt_math_trunc(value) }
+pub fn fabs: (value :f64) :f64 { return rt_math_fabs(value) }
+pub fn fmod: (x :f64, y :f64) :f64 { return rt_math_fmod(x, y) }
+pub fn remainder: (x :f64, y :f64) :f64 { return rt_math_remainder(x, y) }
+pub fn fma: (x :f64, y :f64, z :f64) :f64 { return rt_math_fma(x, y, z) }

@@ -1,8 +1,9 @@
 module decimal
 load kioto::math::_externs
-load kioto::math::basic
+load kioto::math::power
+load kioto::math::number_theoretic
 
-struct Decimal {
+pub struct Decimal {
     mantissa :i64
     scale :i64
 }
@@ -111,7 +112,7 @@ pub fn neg: (value :Decimal) :Decimal {
 }
 
 pub fn add: (a :Decimal, b :Decimal) :Decimal {
-    set s = basic::max(a.scale, b.scale)
+    set s = number_theoretic::max(a.scale, b.scale)
     set left = a.mantissa * pow10(s - a.scale)
     set right = b.mantissa * pow10(s - b.scale)
     return normalize((Decimal mantissa: left + right, scale: s))

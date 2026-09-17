@@ -3,4 +3,5 @@ name = "fs"
 entry = "mod.mire"
 
 [exports]
+_externs = "_externs.mire"
 check = "check.mire"

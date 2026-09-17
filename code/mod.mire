@@ -1,3 +1,4 @@
+@[no_main]
 module kioto
 load kioto::strings
 load kioto::time

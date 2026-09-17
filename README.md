@@ -1,6 +1,6 @@
 # kioto — Mire standard library
 
-Version **2.4.4** — [CHANGELOG](CHANGELOG.md)
+Version **2.4.9** — [CHANGELOG](CHANGELOG.md)
 
 Kioto is the core library for the Mire language ecosystem.
 Load the full library with `load kioto`, or load individual modules
@@ -148,6 +148,7 @@ handle-based functions use the PAL v4 `Root`/`File`/`Dir` resource handles.
 | `write(path, data)` | — | Write file (create/truncate) |
 | `exists(path)` | `bool` | Check if path exists |
 | `is_file(path)` | `bool` | Check if path is a regular file |
+| `permission(path, mode)` | `bool` | Apply an octal mode string (e.g. `"644"`) via `pal_file_chmod` |
 | `drop(path)` | `bool` | Delete file |
 | `remove(path)` | `bool` | Remove a single entry (file, symlink, or empty dir); symlinks are never followed |
 | `remove_all(path)` | `bool` | Recursively remove a file/symlink/dir tree; never follows symlinks |
@@ -295,85 +296,125 @@ Channel primitives backed directly by the PAL, plus a task/future pattern.
 
 ## math
 
-Mathematical functions.
+Comprehensive mathematical functions following POSIX/IEEE 754 conventions.
+All functions are directly accessible under `math::` after `load kioto::math`.
+
+### Constants
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `pi()` | `f64` | π constant |
-| `e()` | `f64` | e constant |
-| `tau()` | `f64` | τ constant |
+| `pi()` | `f64` | π = 3.141592653589793 |
+| `e()` | `f64` | e = 2.718281828459045 |
+| `tau()` | `f64` | τ = 2π = 6.283185307179586 |
+| `inf()` | `f64` | Positive infinity |
+| `neg_inf()` | `f64` | Negative infinity |
+| `nan()` | `f64` | Not-a-Number (NaN) |
+| `epsilon()` | `f64` | Machine epsilon (DBL_EPSILON) |
+
+### Number-theoretic functions
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `comb(n, k)` | `i64` | Binomial coefficient C(n,k) |
+| `factorial(n)` | `i64` | n! |
+| `gcd(a, b)` | `i64` | Greatest common divisor |
+| `isqrt(n)` | `i64` | Integer square root |
+| `lcm(a, b)` | `i64` | Least common multiple |
+| `perm(n, k)` | `i64` | Permutations P(n,k) |
 | `abs(n)` | `i64` | Absolute value |
-| `min(a, b)` | `i64` | Minimum of two values |
-| `max(a, b)` | `i64` | Maximum of two values |
-| `clamp(n, min, max)` | `i64` | Clamp value to range |
-| `sum(list)` | `i64` | Sum of list |
-| `mean(list)` | `f64` | Arithmetic mean |
-| `avg(list)` | `f64` | Alias for mean |
-| `variance(list)` | `f64` | Population variance |
-| `stddev(list)` | `f64` | Standard deviation |
-| `median(list)` | `f64` | Median value |
-| `minlist(list)` | `i64` | Minimum value in list |
-| `maxlist(list)` | `i64` | Maximum value in list |
-| `range(end)` | `vec[i64]` | Range `[0, end)` |
-| `between(start, end)` | `vec[i64]` | Range `[start, end)` |
-| `step(start, end, n)` | `vec[i64]` | Range with step |
+| `min(a, b)` | `i64` | Minimum of two integers |
+| `max(a, b)` | `i64` | Maximum of two integers |
+
+### Float manipulation
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `ceil(x)` | `i64` | Smallest integer ≥ x |
+| `floor(x)` | `i64` | Largest integer ≤ x |
+| `trunc(x)` | `i64` | Integer part of x |
+| `fabs(x)` | `f64` | Absolute value of x |
+| `fmod(x, y)` | `f64` | Remainder of x/y |
+| `remainder(x, y)` | `f64` | IEEE 754 remainder |
+| `fma(x, y, z)` | `f64` | Fused multiply-add (x*y)+z |
+| `copysign(x, y)` | `f64` | |x| with sign of y |
+| `frexp(x)` | `FrexpResult` | Mantissa and exponent |
+| `ldexp(x, i)` | `f64` | x * 2^i |
+| `nextafter(x, y, steps)` | `f64` | Next value after x toward y |
+| `ulp(x)` | `f64` | Unit in last place |
+| `modf(x)` | `ModfResult` | Fractional and integer parts |
+
+### Float classification
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `isfinite(x)` | `bool` | True if x is finite |
+| `isinf(x)` | `bool` | True if x is ±infinity |
+| `isnan(x)` | `bool` | True if x is NaN |
+| `isclose(a, b, rel_tol, abs_tol)` | `bool` | True if a ≈ b |
+
+### Power, exponential and logarithmic
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `sqrt(x)` | `f64` | Square root |
+| `cbrt(x)` | `f64` | Cube root |
+| `pow(x, y)` | `f64` | x raised to y |
+| `exp(x)` | `f64` | e^x |
+| `exp2(x)` | `f64` | 2^x |
+| `expm1(x)` | `f64` | e^x - 1 |
+| `log(x)` | `f64` | Natural logarithm |
+| `log2(x)` | `f64` | Base-2 logarithm |
+| `log10(x)` | `f64` | Base-10 logarithm |
+| `log1p(x)` | `f64` | log(1+x) |
+
+### Trigonometric functions
+
+| Function | Returns | Description |
+|----------|---------|-------------|
 | `sin(x)` | `f64` | Sine |
 | `cos(x)` | `f64` | Cosine |
 | `tan(x)` | `f64` | Tangent |
 | `asin(x)` | `f64` | Arc sine |
 | `acos(x)` | `f64` | Arc cosine |
-| `atan2(y, x)` | `f64` | Arc tangent (2-arg) |
-| `sqrt(x)` | `f64` | Square root |
-| `pow(base, exp)` | `f64` | Power |
-| `log(x)` | `f64` | Natural log |
-| `log10(x)` | `f64` | Base-10 log |
-| `exp(x)` | `f64` | Exponential |
-| `round(x)` | `i64` | Round to nearest integer |
-| `floor(x)` | `i64` | Floor |
-| `ceil(x)` | `i64` | Ceiling |
-| `hypot(x, y)` | `f64` | Euclidean distance |
+| `atan(x)` | `f64` | Arc tangent |
+| `atan2(y, x)` | `f64` | Arc tangent of y/x |
 
-### math::basic
-
-Sub-module with the same mathematical constants and basic functions.
-- `pi`, `e`, `tau`, `abs`, `min`, `max`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan2`, `sqrt`, `pow`, `log`, `log10`, `exp`, `round`, `floor`, `ceil`, `hypot`
-
-### math::stats
-
-Statistics sub-module: `sum`, `mean`, `avg`, `variance`, `stddev`, `minlist`,
-`maxlist`, `median`, `range`, `between`, `step`.
-
-### math::decimal
-
-Fixed-point decimal arithmetic.
+### Hyperbolic functions
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `new(mantissa, scale)` | `Decimal` | Create decimal |
-| `zero()` | `Decimal` | Zero value |
-| `int(v)` | `Decimal` | From i64 |
-| `parse(text)` | `Decimal` | From string |
-| `float(d)` | `f64` | Convert to f64 |
-| `text(d)` | `str` | Convert to string |
-| `abs(d)` | `Decimal` | Absolute value |
-| `neg(d)` | `Decimal` | Negate |
-| `add(a, b)` | `Decimal` | Add |
-| `sub(a, b)` | `Decimal` | Subtract |
-| `mul(a, b)` | `Decimal` | Multiply |
-| `div(a, b)` | `Decimal` | Divide (12-digit precision) |
-| `prec(a, b, p)` | `Decimal` | Divide with custom precision |
-| `round(d)` | `i64` | Round to integer |
-| `mantissa(d)` | `i64` | Get mantissa |
-| `scale(d)` | `i64` | Get scale |
-| `normalize(d)` | `Decimal` | Normalize scale |
+| `sinh(x)` | `f64` | Hyperbolic sine |
+| `cosh(x)` | `f64` | Hyperbolic cosine |
+| `tanh(x)` | `f64` | Hyperbolic tangent |
+| `asinh(x)` | `f64` | Inverse hyperbolic sine |
+| `acosh(x)` | `f64` | Inverse hyperbolic cosine |
+| `atanh(x)` | `f64` | Inverse hyperbolic tangent |
 
-```mire
-set d = decimal::int(42)           # 42
-set d = decimal::parse("3.14")     # 3.14
-set f = decimal::float(d)          # 3.14 as f64
-set s = decimal::text(d)           # "3.14"
-set r = decimal::prec(a, b, 6)     # division with 6 decimal places
-```
+### Angular conversion
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `degrees(x)` | `f64` | Radians to degrees |
+| `radians(x)` | `f64` | Degrees to radians |
+
+### Special functions
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `erf(x)` | `f64` | Error function |
+| `erfc(x)` | `f64` | Complementary error function |
+| `gamma(x)` | `f64` | Gamma function |
+| `lgamma(x)` | `f64` | Log gamma function |
+
+### Summation and product
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `hypot(x, y)` | `f64` | √(x²+y²) |
+| `fsum(list)` | `f64` | High-precision sum |
+| `prod(list, start)` | `f64` | Product with start value |
+| `sumprod(p, q)` | `f64` | Sum of products |
+| `dist(p, q)` | `f64` | Euclidean distance |
 
 ### math::complex
 
@@ -402,6 +443,30 @@ Complex number arithmetic.
 | `sqrt(z)` | `Complex` | Complex square root |
 | `pow(z, exp)` | `Complex` | Complex power |
 
+### math::decimal
+
+Fixed-point decimal arithmetic.
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `new(mantissa, scale)` | `Decimal` | Create decimal |
+| `zero()` | `Decimal` | Zero value |
+| `int(v)` | `Decimal` | From i64 |
+| `parse(text)` | `Decimal` | From string |
+| `float(d)` | `f64` | Convert to f64 |
+| `text(d)` | `str` | Convert to string |
+| `abs(d)` | `Decimal` | Absolute value |
+| `neg(d)` | `Decimal` | Negate |
+| `add(a, b)` | `Decimal` | Add |
+| `sub(a, b)` | `Decimal` | Subtract |
+| `mul(a, b)` | `Decimal` | Multiply |
+| `div(a, b)` | `Decimal` | Divide (12-digit precision) |
+| `prec(a, b, p)` | `Decimal` | Divide with custom precision |
+| `round(d)` | `i64` | Round to integer |
+| `mantissa(d)` | `i64` | Get mantissa |
+| `scale(d)` | `i64` | Get scale |
+| `normalize(d)` | `Decimal` | Normalize scale |
+
 ### math::random
 
 Random number generation (deterministic seeded PRNG).
@@ -419,16 +484,21 @@ Random number generation (deterministic seeded PRNG).
 
 ## net
 
-Low-level TCP resources backed by PAL v4 handles.
+Low-level TCP and UDP resources backed by PAL v4 handles. TCP listeners use
+`accept`; UDP listeners use their datagram send/receive operations directly.
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `socket::connect(host, port)` | `Socket` | Open a TCP socket handle |
+| `socket::connect::tcp(host, port)` | `Socket` | Open a TCP socket handle |
+| `socket::connect::udp(host, port)` | `Socket` | Open a connected UDP socket |
 | `socket::send(socket, data)` | `i64` | Send bytes |
 | `socket::recv(socket, buffer, max_len)` | `i64` | Receive bytes into a caller-owned buffer |
 | `socket::close(socket)` | — | Release a socket handle |
-| `listener::bind(port)` | `Listener` | Open a listening handle |
+| `listener::bind::tcp(port)` | `Listener` | Open a TCP listening handle |
 | `listener::accept(listener)` | `Socket` | Accept one connection |
+| `listener::bind::udp(port)` | `Listener` | Bind a UDP datagram endpoint |
+| `listener::send(listener, data)` | `i64` | Send a UDP datagram |
+| `listener::recv(listener, buffer, max_len)` | `i64` | Receive a UDP datagram |
 | `listener::close(listener)` | — | Release a listener handle |
 
 ---
@@ -457,6 +527,8 @@ SHA-256 and SHA-512 hashing per FIPS 180-4.
 |----------|---------|-------------|
 | `sha256(msg)` | `str` | SHA-256 hex digest (64 lowercase hex chars) |
 | `sha512(msg)` | `str` | SHA-512 hex digest (128 lowercase hex chars) |
+| `sha256_file(path)` | `str` | SHA-256 hex digest of a file's raw bytes |
+| `sha512_file(path)` | `str` | SHA-512 hex digest of a file's raw bytes |
 
 ```mire
 set h = crypto::hash::sha256("abc")
@@ -473,10 +545,11 @@ Hex and Base64 encoding.
 | `hex::decode(hex)` | `vec[i64]` | Decode hex string to bytes |
 | `base64::encode(bytes)` | `str` | Encode bytes to Base64 string |
 | `base64::decode(s)` | `vec[i64]` | Decode Base64 string to bytes |
+| `base64::encode_file(path)` | `str` | Base64-encode a file's raw bytes |
 
 ### crypto::random::secure
 
-CSPRNG via `/dev/urandom`.
+CSPRNG via the PAL's libsodium-backed secure random provider.
 
 | Function | Returns | Description |
 |----------|---------|-------------|
@@ -500,6 +573,9 @@ Ed25519 digital signatures via PAL (EdDSA, Curve25519, RFC 8032).
 | `secret::public(secret)` | `PublicKey` | Derive the public key |
 | `secret::sign(secret, msg)` | `str` | Sign a message (64-byte signature) |
 | `public::verify(pubkey, msg, sig)` | `bool` | Verify a signature |
+| `public::verify_b64(pubkey_b64, data_file, sig_b64)` | `bool` | Verify a base64 signature over a file's bytes |
+| `public::verify_file(pubkey_b64, data_file, sig_file)` | `bool` | Verify a raw signature file over a file's bytes |
+| `public::raw_b64_from_pem(pem_path)` | `str` | Extract the raw 32-byte key from a PEM public key, base64-encoded |
 | `secret::close(secret)` | — | Release a secret key handle |
 | `public::close(pubkey)` | — | Release a public key handle |
 
@@ -549,7 +625,7 @@ pub fn main: () {
 
 ## Version
 
-**2.4.8** — See [CHANGELOG.md](CHANGELOG.md) for the migration guide.
+**2.4.9** — See [CHANGELOG.md](CHANGELOG.md) for the migration guide.
 
 ## Verification
 

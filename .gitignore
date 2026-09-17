@@ -1,2 +1,3 @@
 bin/
 owl.lock
+tests/log/

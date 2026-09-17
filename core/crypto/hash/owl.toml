@@ -3,5 +3,6 @@ name = "hash"
 entry = "mod.mire"
 
 [exports]
+_externs = "_externs.mire"
 sha256 = "sha256.mire"
 sha512 = "sha512.mire"

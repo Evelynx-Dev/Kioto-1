@@ -1,8 +1,7 @@
 module cli
 load kioto::strings
 load mire::vec
-
-extern fn rt_get_args: (argc :i32, argv :ptr) :vec[str] lib "c"
+load kioto::cli::_externs
 
 pub fn parse: (raw :&vec[str]) :map[str str] {
     set result = {"command": ""} :map[str str] mut

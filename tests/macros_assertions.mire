@@ -1,0 +1,11 @@
+// Integration coverage for Mire's native macro library through Kioto's
+// dependency trust and macro auto-scoping path.
+
+@[test]
+pub fn test_mire_assertion_macros: () :bool {
+    set actual = 6 * 7
+    assert_eq!(actual 42 "computed product must equal 42")
+    assert_ne!(actual 0 "computed product must not equal zero")
+    set observed = trace_i64!(actual)
+    return observed == 42
+}

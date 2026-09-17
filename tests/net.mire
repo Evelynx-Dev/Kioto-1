@@ -22,12 +22,15 @@ pub fn test_udp_loopback: () :bool {
 }
 
 @[test]
-pub fn test_udp_invalid_port_is_rejected: () :bool {
+pub fn test_udp_port_zero_is_accepted: () :bool {
+    // UDP is connectionless: `connect` only records the default peer and does
+    // not probe the port, so port 0 yields a valid socket (the kernel picks an
+    // ephemeral source port). Only TCP performs a real handshake and rejects.
     set socket = net::socket::connect::udp("127.0.0.1" 0 :u16)
-    if socket.handle > 0 {
-        net::socket::close(socket)
+    if socket.handle <= 0 {
         return false
     }
+    net::socket::close(socket)
     return true
 }
 

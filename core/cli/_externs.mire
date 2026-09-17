@@ -1,0 +1,4 @@
+module _externs
+// CLI C runtime
+
+extern fn rt_get_args: (argc :i32, argv :ptr) :vec[str] lib "c"

@@ -1,5 +1,59 @@
 # kioto changelog
 
+## [2.4.9] — 2026-09-17 (math modularization + full stdlib overhaul)
+
+### Added
+- **UDP loopback support** — Kioto exposes connected UDP sockets and UDP
+  listener datagrams through the PAL, while TCP retains its stream/listener
+  accept model.
+- **RFC 4648 validation** — Base64 decoding now rejects non-4-byte inputs,
+  misplaced padding and data after terminal padding.
+- **libsodium-backed crypto runtime** — `crypto::hash::sha256` and
+  `crypto::hash::sha512` now call the runtime's libsodium binding instead of
+  maintaining duplicate hash rounds in Mire. Ed25519 and secure random remain
+  PAL-backed and therefore use the same native crypto boundary.
+- **Crypto integration tests** — NIST SHA-256/SHA-512 vectors, Ed25519
+  round-trip plus tampered-message rejection, and secure-random shape checks.
+- **File-based crypto APIs** — `crypto::hash::sha256_file`/`sha512_file`,
+  `crypto::encode::base64::file`, and `crypto::sign::ed25519::verify_file` /
+  `pubkey_raw` now hash/sign/verify files directly through the runtime's
+  binary-safe readers instead of loading them as text.
+- **`fs::permission(path, mode)`** — applies an octal mode string through the
+  new `pal_file_chmod` PAL capability.
+- **Complete math library redesign** — `math` module now exposes 80+ functions directly under `math::` following POSIX/IEEE 754 naming conventions:
+  - Constants: `pi`, `e`, `tau`, `inf`, `neg_inf`, `nan`, `epsilon`
+  - Number-theoretic: `comb`, `factorial`, `gcd`, `isqrt`, `lcm`, `perm`, `abs`, `min`, `max`
+  - Float manipulation: `ceil`, `floor`, `trunc`, `fabs`, `fmod`, `remainder`, `fma`, `copysign`, `frexp`, `ldexp`, `nextafter`, `ulp`, `modf`
+  - Float classification: `isfinite`, `isinf`, `isnan`, `isclose`
+  - Power/exponential/log: `sqrt`, `cbrt`, `pow`, `exp`, `exp2`, `expm1`, `log`, `log2`, `log10`, `log1p`
+  - Trigonometric: `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`
+  - Hyperbolic: `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`
+  - Angular: `degrees`, `radians`
+  - Special: `erf`, `erfc`, `gamma`, `lgamma`
+  - Summation: `hypot`, `fsum`, `prod`, `sumprod`, `dist`
+- **New C runtime functions** in `math.c`/`runtime.h` for all above operations
+- **Internal modularization** — `math` now uses private submodules (`constants`, `number_theoretic`, `float`, `float_manip`, `power`, `sum`, `angle`, `trig`, `hyperbolic`, `special`) loaded by the orchestrator `mod.mire`
+- **Unified `_externs.mire` pattern** applied to all major modules: `strings`, `fs`, `proc`, `net`, `async`, `cli`, `crypto/hash`, `math` — single source of truth for C extern declarations
+
+### Changed
+- `math::basic` and `math::stats` removed — their functions now accessible directly as `math::abs`, `math::sin`, `math::mean`, etc.
+- `math` module structure: `complex`, `decimal`, `random` remain as structured submodules; all other functions flattened
+- All core modules (`strings`, `fs`, `proc`, `net`, `async`, `cli`, `crypto/hash`, `math`) now declare `module` name and use `_externs.mire` for C FFI declarations
+- Module exports updated in `core/math/owl.toml` to reflect new internal structure
+- Build manifest updated to Avenys 4.x's `artifact = "shared"` spelling; Mire
+  macro allowlisting expanded; integration test added for Mire's assertion macros
+
+### Removed
+- `core/math/basic.mire` (merged into new submodules)
+- `core/math/stats.mire` (merged into new submodules)
+
+### Tests
+- All 37 kioto tests pass (including UDP loopback/TCP rejection, crypto
+  vectors, fs removal, channel round-trip and CLI parsing)
+- Full ecosystem verification: MireData, stress, token, sdl, owl tool all build and test green
+- UDP `connect` on port 0 is accepted (connectionless); the test now documents
+  that only TCP performs a real handshake and rejects.
+
 ## [2.4.8] — 2026-08-24 (fs::is_file + module declarations)
 
 ### Added
@@ -673,3 +727,4 @@ net::http::serve_file(fd, "index.html")
   construction requires C PAL functions for binary headers and XOR masking.
 - **`rt_vec_get_str` spacing:** `rt_vec_get_str(v(i+1))` is parsed as function call.
   Use `rt_vec_get_str(v, i+1)` or `rt_vec_get_str(v(i+1))` (no space before `(`).
+

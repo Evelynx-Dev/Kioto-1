@@ -3,4 +3,5 @@ name = "proc"
 entry = "mod.mire"
 
 [exports]
+_externs = "_externs.mire"
 spawn = "spawn.mire"

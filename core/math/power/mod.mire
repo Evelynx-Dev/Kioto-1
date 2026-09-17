@@ -1,0 +1,13 @@
+module power
+load kioto::math::_externs
+
+pub fn sqrt: (value :f64) :f64 { return rt_math_sqrt(value) }
+pub fn cbrt: (value :f64) :f64 { return rt_math_cbrt(value) }
+pub fn pow: (base :f64, exponent :f64) :f64 { return rt_math_pow(base, exponent) }
+pub fn exp: (value :f64) :f64 { return rt_math_exp(value) }
+pub fn exp2: (value :f64) :f64 { return rt_math_exp2(value) }
+pub fn expm1: (value :f64) :f64 { return rt_math_expm1(value) }
+pub fn log: (value :f64) :f64 { return rt_math_log(value) }
+pub fn log2: (value :f64) :f64 { return rt_math_log2(value) }
+pub fn log10: (value :f64) :f64 { return rt_math_log10(value) }
+pub fn log1p: (value :f64) :f64 { return rt_math_log1p(value) }

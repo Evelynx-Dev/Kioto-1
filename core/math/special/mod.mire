@@ -1,0 +1,7 @@
+module special
+load kioto::math::_externs
+
+pub fn erf: (value :f64) :f64 { return rt_math_erf(value) }
+pub fn erfc: (value :f64) :f64 { return rt_math_erfc(value) }
+pub fn gamma: (value :f64) :f64 { return rt_math_gamma(value) }
+pub fn lgamma: (value :f64) :f64 { return rt_math_lgamma(value) }
