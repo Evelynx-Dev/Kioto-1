@@ -1,5 +1,58 @@
 # kioto changelog
 
+## [2.5.0] — 2026-09-22 (UDP loopback, crypto simplification, PAL socket constants fix)
+
+### Added
+- **UDP loopback support** — Kioto exposes connected UDP sockets and UDP
+  listener datagrams through the PAL, while TCP retains its stream/listener
+  accept model.
+- **RFC 4648 validation** — Base64 decoding now rejects non-4-byte inputs,
+  misplaced padding and data after terminal padding.
+- **libsodium-backed crypto runtime** — `crypto::hash::sha256` and
+  `crypto::hash::sha512` now call the runtime's libsodium binding instead of
+  maintaining duplicate hash rounds in Mire. Ed25519 and secure random remain
+  PAL-backed and therefore use the same native crypto boundary.
+- **Crypto integration tests** — NIST SHA-256/SHA-512 vectors, Ed25519
+  round-trip plus tampered-message rejection, and secure-random shape checks.
+- **File-based crypto APIs** — `crypto::hash::sha256_file`/`sha512_file`,
+  `crypto::encode::base64::file`, and `crypto::sign::ed25519::verify_file` /
+  `pubkey_raw` now hash/sign/verify files directly through the runtime's
+  binary-safe readers instead of loading them as text.
+- **`fs::permission(path, mode)`** — applies an octal mode string through the
+  new `pal_file_chmod` PAL capability.
+
+### Changed
+- **Crypto simplification** — `crypto` module no longer maintains duplicate
+  SHA-256/SHA-512 implementations; delegates to libsodium via PAL.
+- **PAL socket constants fix** — `PAL_SOCKET_TCP`/`PAL_SOCKET_UDP` constants
+  moved to `_externs.mire` as `pub const` and accessed via `_externs::` prefix
+  in `core/net/mod.mire`, resolving compiler visibility issues in nested
+  functions.
+- **Math library redesign** — `math` module now exposes 80+ functions directly
+  under `math::` following POSIX/IEEE 754 naming conventions:
+  - Constants: `pi`, `e`, `tau`, `inf`, `neg_inf`, `nan`, `epsilon`
+  - Number-theoretic: `comb`, `factorial`, `gcd`, `isqrt`, `lcm`, `perm`, `abs`, `min`, `max`
+  - Float manipulation: `ceil`, `floor`, `trunc`, `fabs`, `fmod`, `remainder`, `fma`, `copysign`, `frexp`, `ldexp`, `nextafter`, `ulp`, `modf`
+  - Float classification: `isfinite`, `isinf`, `isnan`, `isclose`
+  - Power/exponential/log: `sqrt`, `cbrt`, `pow`, `exp`, `exp2`, `expm1`, `log`, `log2`, `log10`, `log1p`
+  - Trigonometric: `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`
+  - Hyperbolic: `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`
+  - Angular: `degrees`, `radians`
+  - Special: `erf`, `erfc`, `gamma`, `lgamma`
+  - Summation: `hypot`, `fsum`, `prod`, `sumprod`, `dist`
+
+### Removed
+- `core/math/basic.mire` (merged into new submodules)
+- `core/math/stats.mire` (merged into new submodules)
+- Duplicate crypto implementations (SHA-256/SHA-512 now delegate to libsodium)
+
+### Tests
+- All 37 kioto tests pass (including UDP loopback/TCP rejection, crypto
+  vectors, fs removal, channel round-trip and CLI parsing)
+- Full ecosystem verification: MireData, stress, token, sdl, owl tool all build and test green
+- UDP `connect` on port 0 is accepted (connectionless); the test now documents
+  that only TCP performs a real handshake and rejects.
+
 ## [2.4.9] — 2026-09-17 (math modularization + full stdlib overhaul)
 
 ### Added

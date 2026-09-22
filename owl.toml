@@ -1,6 +1,6 @@
 [project]
 name = "kioto"
-version = "2.4.9"
+version = "2.5.0"
 description = "Standard lib for Mire"
 entry = "code/mod.mire"
 
@@ -20,23 +20,16 @@ sources = "."
 tests = "tests"
 output = "bin"
 cache = "bin/.cache"
-source = "."
-test = "tests"
-bin = "bin"
 generated = "bin/generated"
 
 [cfg]
 publisher = "publish.toml"
-registry = "mor"
+registry = "local"
 
 [dependencies]
 mire = { path = "../mire" }
 kioto = { path = "." }
 
-# Strict security mode. kioto's own externs are PAL (`pal_*`) and runtime
-# helpers (`rt_*`); mire's library macros (`assert!`/`dbg!`) are allowlisted
-# and mire is trusted at the "Macros" tier so its `[macros]` auto-scope into
-# kioto tests/code under strict mode.
 [security]
 mode = "strict"
 externs = ["rt_*", "pal_*"]
@@ -58,3 +51,6 @@ net     = "core/net"
 log     = "core/log"
 cli     = "core/cli"
 crypto  = "core/crypto"
+
+["owl@lock"]
+version = "3"

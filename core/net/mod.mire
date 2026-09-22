@@ -1,4 +1,5 @@
 module net
+// Network PAL bindings
 load kioto::net::_externs
 
 pub struct Socket {
@@ -9,6 +10,7 @@ pub struct Listener {
     handle :i64
 }
 
+// Socket type constants (inlined to avoid module loading issues)
 cons PAL_SOCKET_TCP = 1 :i32
 cons PAL_SOCKET_UDP = 2 :i32
 
