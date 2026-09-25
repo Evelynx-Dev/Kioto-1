@@ -10,20 +10,20 @@ pub struct Listener {
     handle :i64
 }
 
-// Socket type constants (inlined to avoid module loading issues)
-cons PAL_SOCKET_TCP = 1 :i32
-cons PAL_SOCKET_UDP = 2 :i32
+// Socket type constants
+pub fn PAL_SOCKET_TCP: () :i32 { return 1 :i32 }
+pub fn PAL_SOCKET_UDP: () :i32 { return 2 :i32 }
 
 // ── socket ──────────────────────────────────────────────────────
 pub fn socket: () {
     pub fn connect: () {
         pub fn tcp: (host :&str, port :u16) :Socket {
-            set h = pal_socket_connect(host, port, PAL_SOCKET_TCP)
+            set h = pal_socket_connect(host, port, PAL_SOCKET_TCP())
             return (Socket handle: h)
         }
 
         pub fn udp: (host :&str, port :u16) :Socket {
-            set h = pal_socket_connect(host, port, PAL_SOCKET_UDP)
+            set h = pal_socket_connect(host, port, PAL_SOCKET_UDP())
             return (Socket handle: h)
         }
     }
@@ -45,12 +45,12 @@ pub fn socket: () {
 pub fn listener: () {
     pub fn bind: () {
         pub fn tcp: (port :u16) :Listener {
-            set h = pal_listener_bind(port PAL_SOCKET_TCP)
+            set h = pal_listener_bind(port PAL_SOCKET_TCP())
             return (Listener handle: h)
         }
 
         pub fn udp: (port :u16) :Listener {
-            set h = pal_listener_bind(port PAL_SOCKET_UDP)
+            set h = pal_listener_bind(port PAL_SOCKET_UDP())
             return (Listener handle: h)
         }
     }
