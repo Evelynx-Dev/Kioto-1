@@ -1,5 +1,13 @@
 # kioto changelog
 
+## [2.5.1] — 2026-09-26 (proc::run submodule compatibility)
+
+### Added
+- **proc::run submodule** — Added compatibility layer `proc::run::{create, spawn, output, output_cwd, last_exit, read_line}` mirroring the previous flat API, so existing code using `proc::run::output` etc. continues to work.
+
+### Fixed
+- **Test suite compatibility** — Restored `proc::run::output`/`proc::run::spawn`/`proc::run::output_cwd`/`proc::run::last_exit`/`proc::run::read_line` used by kioto tests.
+
 ## [2.5.0] — 2026-09-22 (UDP loopback, crypto simplification, PAL socket constants fix)
 
 ### Added

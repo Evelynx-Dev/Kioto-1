@@ -59,6 +59,28 @@ pub fn close: (p :Process) {
     use pal_proc_close(p.handle)
 }
 
+// ── run (compat submodule) ──────────────────────────────────────
+pub fn run: () {
+    pub fn create: (cmd :&str, args :vec[str], flags :i32, stdin_ch :i64, stdout_ch :i64, stderr_ch :i64) :Process {
+        return proc::run_create(cmd, args, flags, stdin_ch, stdout_ch, stderr_ch)
+    }
+    pub fn spawn: (cmd :&str, args :vec[str]) :i64 {
+        return proc::run_spawn(cmd, args)
+    }
+    pub fn output: (cmd :&str, args :vec[str]) :str {
+        return proc::run_output(cmd, args)
+    }
+    pub fn output_cwd: (cmd :&str, args :vec[str], cwd :&str, merge_err :bool) :str {
+        return proc::run_output_cwd(cmd, args, cwd, merge_err)
+    }
+    pub fn last_exit: () :i64 {
+        return proc::run_last_exit()
+    }
+    pub fn read_line: () :str {
+        return proc::run_read_line()
+    }
+}
+
 // ── stream ──────────────────────────────────────────────────────
 pub fn stream: () {
     pub fn input: (p :Process) :i64 {
