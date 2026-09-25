@@ -8,6 +8,20 @@
 ### Fixed
 - **Test suite compatibility** — Restored `proc::run::output`/`proc::run::spawn`/`proc::run::output_cwd`/`proc::run::last_exit`/`proc::run::read_line` used by kioto tests.
 
+## [2.5.2] — 2026-09-26 (compat shim + feature flags)
+
+### Added
+- **Feature flags** in `meta.toml`:
+  - `compat-v2` — enables `core/compat` shim re-exporting legacy flat API (`proc_run_output`, etc.).
+  - `minimal-runtime` — disables heavy deps (libsodium, openssl) for tiny binaries.
+- **Compatibility shim** `core/compat.mire` re-exports legacy flat proc API (`proc_run_output`, `proc_run_spawn`, …) and stubs for crypto.
+- **Root module** `kioto/mod.mire` loads core modules and conditionally includes compat/minimal features.
+
+### Changed
+- `meta.toml` now declares `[features]` section.
+- `core/compat.mire` added (guarded by `compat-v2`).
+- `kioto/mod.mire` added as public entry point with conditional feature loading.
+
 ## [2.5.0] — 2026-09-22 (UDP loopback, crypto simplification, PAL socket constants fix)
 
 ### Added

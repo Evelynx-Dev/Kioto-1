@@ -1,0 +1,24 @@
+module compat
+
+/! 
+  Compatibility shim for kioto v2.x → v3 migration.
+  Re-exports legacy flat API under original names.
+  Enable with feature `compat-v2` in meta.toml.
+!/
+
+load kioto::proc
+
+/! Legacy flat proc functions (v2) !/
+pub fn proc_run_create: (cmd :&str, args :vec[str], flags :i32, stdin_ch :i64, stdout_ch :i64, stderr_ch :i64) = proc::run_create
+pub fn proc_run_spawn: (cmd :&str, args :vec[str]) :i64 = proc::run_spawn
+pub fn proc_run_output: (cmd :&str, args :vec[str]) :str = proc::run_output
+pub fn proc_run_output_cwd: (cmd :&str, args :vec[str], cwd :&str, merge_err :bool) :str = proc::run_output_cwd
+pub fn proc_run_last_exit: () :i64 = proc::run_last_exit
+pub fn proc_run_read_line: () :str = proc::run_read_line
+
+/! Legacy flat crypto functions (to be added when crypto refactor lands) !/
+/! pub fn crypto_hash_sha256 = crypto::hash::sha256
+pub fn crypto_hash_sha512 = crypto::hash::sha512
+pub fn crypto_sign_ed25519_sign = crypto::sign::ed25519::sign
+pub fn crypto_sign_ed25519_verify = crypto::sign::ed25519::verify
+!/

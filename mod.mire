@@ -1,0 +1,26 @@
+module kioto
+
+/! Core modules !/
+load kioto::strings
+load kioto::fs
+load kioto::proc
+load kioto::crypto
+load kioto::net
+load kioto::math
+load kioto::time
+load kioto::env
+load kioto::cli
+load kioto::async
+load kioto::log
+load kioto::mem
+load kioto::cpu
+
+/! Optional compatibility shim (enabled via feature `compat-v2`) !/
+#if feature("compat-v2")
+load kioto::compat
+#endif
+
+/! Optional minimal runtime (enabled via feature `minimal-runtime`) !/
+#if feature("minimal-runtime")
+/! exclude crypto, net, etc. that need libsodium/openssl !/
+#endif
