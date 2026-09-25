@@ -1,3 +1,0 @@
-module encode
-load kioto::crypto::encode::hex
-load kioto::crypto::encode::base64

@@ -1,8 +1,0 @@
-module sha256
-
-load kioto::crypto::hash::_externs
-
-/! Computes lowercase SHA-256 through the runtime's libsodium binding. !/
-pub fn hash: (msg :&str) :str {
-    return rt_crypto_sha256_hex(msg)
-}

@@ -1,9 +1,0 @@
-[project]
-name = "cpu"
-entry = "mod.mire"
-
-[exports]
-time    = "time.mire"
-elapsed = "elapsed.mire"
-freq    = "freq.mire"
-cycles  = "cycles.mire"

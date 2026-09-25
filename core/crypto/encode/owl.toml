@@ -1,7 +1,0 @@
-[project]
-name = "encode"
-entry = "mod.mire"
-
-[exports]
-hex    = "hex.mire"
-base64 = "base64.mire"

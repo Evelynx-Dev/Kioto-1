@@ -1,8 +1,8 @@
 [project]
 name = "kioto"
-version = "2.5.0"
+version = "3.0.0"
 description = "Standard lib for Mire"
-entry = "code/mod.mire"
+entry = "src/mod.mr"
 
 [build]
 compiler = "mire"
@@ -16,41 +16,32 @@ incremental = true
 debug-info = true
 
 [paths]
-sources = "."
+sources = "src"
 tests = "tests"
 output = "bin"
 cache = "bin/.cache"
-generated = "bin/generated"
-
-[cfg]
-publisher = "publish.toml"
-registry = "local"
 
 [dependencies]
-mire = { path = "../mire" }
+mire = { path = "~/.owl/libs/mire" }
 kioto = { path = "." }
 
 [security]
 mode = "strict"
-externs = ["rt_*", "pal_*"]
-extern_libs = ["c"]
+externs = ["pal_*", "rt_list_*", "rt_lists_*", "rt_vecs_*", "rt_dict*", "rt_map*", "rt_string*", "rt_i64_to_string", "rt_f64_to_string", "rt_bool_to_string", "rt_managed_*"]
+extern-libs = ["c"]
 macros = ["assert", "assert_eq", "assert_ne", "dbg", "trace_i64"]
-deps = { mire = "macros" }
 
 [exports]
-strings = "core/strings"
-time    = "core/time"
-fs      = "core/fs"
-env     = "core/env"
-proc    = "core/proc"
-async   = "core/async"
-mem     = "core/mem"
-cpu     = "core/cpu"
-math    = "core/math"
-net     = "core/net"
-log     = "core/log"
-cli     = "core/cli"
-crypto  = "core/crypto"
-
-["owl@lock"]
-version = "3"
+strings = "modules/strings"
+time    = "modules/time"
+fs      = "modules/fs"
+env     = "modules/env"
+proc    = "modules/proc"
+async   = "modules/async"
+mem     = "modules/mem"
+cpu     = "modules/cpu"
+math    = "modules/math"
+net     = "modules/net"
+log     = "modules/log"
+cli     = "modules/cli"
+crypto  = "modules/crypto"

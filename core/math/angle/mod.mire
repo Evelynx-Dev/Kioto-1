@@ -1,5 +1,0 @@
-module angle
-load kioto::math::_externs
-
-pub fn degrees: (value :f64) :f64 { return rt_math_degrees(value) }
-pub fn radians: (value :f64) :f64 { return rt_math_radians(value) }

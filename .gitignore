@@ -1,3 +1,14 @@
+# Build output
 bin/
-owl.lock
+target/
+.cobject_cache/
+
+# Test output
 tests/log/
+*.log
+
+# Working plan (session-local, never committed)
+todo.md
+
+# owl writes this into the project root on every build
+write_mire_config_debug.txt

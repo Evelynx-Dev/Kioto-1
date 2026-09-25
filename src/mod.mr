@@ -1,0 +1,9 @@
+module kioto
+
+/! Kioto 3.0.0 — punto de entrada.
+!
+! Los `load kioto::<mod>` se incorporan en las fases 2 y 3 del plan de
+! migracion, a medida que cada modulo se traslada a `modules/` con
+! extension `.mr`. Durante el reset del esqueleto este fichero no carga
+! nada todavia.
+!/

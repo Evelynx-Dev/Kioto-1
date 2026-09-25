@@ -1,2 +1,0 @@
-module sign
-load kioto::crypto::sign::ed25519

@@ -1,6 +1,0 @@
-[project]
-name = "strings"
-entry = "mod.mire"
-
-[exports]
-_externs = "_externs.mire"

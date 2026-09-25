@@ -1,6 +1,0 @@
-[project]
-name = "random"
-entry = "mod.mire"
-
-[exports]
-secure = "secure.mire"

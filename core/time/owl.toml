@@ -1,7 +1,0 @@
-[project]
-name = "time"
-entry = "mod.mire"
-
-[exports]
-unix    = "unix.mire"
-elapsed = "elapsed.mire"

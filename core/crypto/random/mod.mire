@@ -1,2 +1,0 @@
-module random
-load kioto::crypto::random::secure

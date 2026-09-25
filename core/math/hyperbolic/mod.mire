@@ -1,9 +1,0 @@
-module hyperbolic
-load kioto::math::_externs
-
-pub fn sinh: (value :f64) :f64 { return rt_math_sinh(value) }
-pub fn cosh: (value :f64) :f64 { return rt_math_cosh(value) }
-pub fn tanh: (value :f64) :f64 { return rt_math_tanh(value) }
-pub fn asinh: (value :f64) :f64 { return rt_math_asinh(value) }
-pub fn acosh: (value :f64) :f64 { return rt_math_acosh(value) }
-pub fn atanh: (value :f64) :f64 { return rt_math_atanh(value) }

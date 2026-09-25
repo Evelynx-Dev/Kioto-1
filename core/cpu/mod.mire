@@ -1,5 +1,0 @@
-module cpu
-
-extern fn pal_cpu_count: () :i64 lib "c"
-
-pub fn count: () :i64 { return pal_cpu_count() }

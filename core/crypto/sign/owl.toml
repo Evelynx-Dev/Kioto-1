@@ -1,6 +1,0 @@
-[project]
-name = "sign"
-entry = "mod.mire"
-
-[exports]
-ed25519 = "ed25519.mire"
