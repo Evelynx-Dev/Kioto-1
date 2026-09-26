@@ -37,6 +37,10 @@ pub fn trunc_toward_zero: () :bool {
     if math::trunc(4.0) != 4.0 { return false }
     if math::trunc(0.75) != 0.0 { return false }
     if math::trunc(0.0 - 0.75) != 0.0 { return false }
+    // Every value between -1 and 1 truncates to zero, and a sign-blind fast
+    // path would return the negative fraction unchanged.
+    if math::trunc(0.0 - 0.5) != 0.0 { return false }
+    if math::trunc(0.0 - 1.5) != 0.0 - 1.0 { return false }
     return true
 }
 
@@ -48,6 +52,11 @@ pub fn floor_and_ceil_directions: () :bool {
     if math::ceil(3.25) != 4.0 { return false }
     if math::ceil(0.0 - 3.75) != 0.0 - 3.0 { return false }
     if math::ceil(4.0) != 4.0 { return false }
+    // Rounding away from zero at the unit boundary.
+    if math::floor(0.0 - 0.5) != 0.0 - 1.0 { return false }
+    if math::ceil(0.0 - 0.5) != 0.0 { return false }
+    if math::floor(0.0 - 0.75) != 0.0 - 1.0 { return false }
+    if math::ceil(0.0 - 0.75) != 0.0 { return false }
     return true
 }
 
@@ -59,6 +68,11 @@ pub fn round_breaks_ties_away_from_zero: () :bool {
     if math::round(3.75) != 4.0 { return false }
     if math::round(0.0 - 3.75) != 0.0 - 4.0 { return false }
     if math::round(4.0) != 4.0 { return false }
+    // Ties below the unit boundary, the region the trunc fast path used to
+    // skip and therefore got wrong for every negative fraction.
+    if math::round(0.0 - 0.5) != 0.0 - 1.0 { return false }
+    if math::round(0.0 - 0.75) != 0.0 - 1.0 { return false }
+    if math::round(0.0 - 1.5) != 0.0 - 2.0 { return false }
     return true
 }
 

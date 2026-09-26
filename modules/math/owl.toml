@@ -2,24 +2,11 @@
 name = "math"
 entry = "mod.mr"
 
+# [exports] maps a namespace segment to a submodule entry point, nothing else.
+# The root helpers (abs, trunc, sum, ...) are plain pub fn in mod.mr and are
+# reached through the package entry, so they must NOT be listed here. crypto
+# and strings set the same precedent.
 [exports]
-# Quick tier: scalar f64 helpers plus the i64 list reductions.
-abs     = "mod.mr"
-sign    = "mod.mr"
-min     = "mod.mr"
-max     = "mod.mr"
-clamp   = "mod.mr"
-floor   = "mod.mr"
-ceil    = "mod.mr"
-round   = "mod.mr"
-trunc   = "mod.mr"
-sum     = "mod.mr"
-avg     = "mod.mr"
-product = "mod.mr"
-minlist = "mod.mr"
-maxlist = "mod.mr"
-
-# Submodules, filled in one at a time.
 consts     = "consts/mod.mr"
 seq        = "seq/mod.mr"
 int        = "int/mod.mr"

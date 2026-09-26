@@ -1,0 +1,61 @@
+// math::consts — exactness of the constant literals.
+//
+// The assertions are on the raw bit pattern rather than on a printed value,
+// because a printed 3.14159 would hide a literal that is off by an ulp or two.
+// Each expected integer is the IEEE-754 bit pattern of the correctly-rounded
+// double, so a lost or rounded digit in a literal fails the test instead of
+// quietly shipping a slightly wrong constant.
+//
+// The identities below are the readable companion checks: they would survive a
+// self-consistent typo in a related pair, but the bit checks above would not.
+
+load kioto
+
+@[test]
+pub fn circle_constants_are_exact: () :bool {
+    if bits::i64(math::consts::pi()) != 4614256656552045848 { return false }
+    if bits::i64(math::consts::tau()) != 4618760256179416344 { return false }
+    return true
+}
+
+@[test]
+pub fn logarithmic_constants_are_exact: () :bool {
+    if bits::i64(math::consts::e()) != 4613303445314885481 { return false }
+    if bits::i64(math::consts::ln2()) != 4604418534313441775 { return false }
+    if bits::i64(math::consts::ln10()) != 4612367379483415830 { return false }
+    if bits::i64(math::consts::log2e()) != 4609176140021203710 { return false }
+    return true
+}
+
+@[test]
+pub fn radical_constants_are_exact: () :bool {
+    if bits::i64(math::consts::phi()) != 4609965796441453736 { return false }
+    if bits::i64(math::consts::golden()) != 4603741974828149073 { return false }
+    if bits::i64(math::consts::sqrt2()) != 4609047870845172685 { return false }
+    if bits::i64(math::consts::sqrt3()) != 4610479282544200874 { return false }
+    if bits::i64(math::consts::sqrt5()) != 4612217596255138984 { return false }
+    return true
+}
+
+@[test]
+pub fn epsilon_is_the_smallest_gap_above_one: () :bool {
+    if bits::i64(math::consts::epsilon()) != 4372995238176751616 { return false }
+    // 1.0 and the next double up differ by exactly one epsilon.
+    if bits::f64(1.0 + math::consts::epsilon()) - 1.0 != math::consts::epsilon() { return false }
+    return true
+}
+
+@[test]
+pub fn identities_hold_to_double_precision: () :bool {
+    // Doubling is exact in binary floating point, so tau is bit-for-bit twice pi.
+    if math::consts::tau() != math::consts::pi() + math::consts::pi() { return false }
+    // The products below are not exact: phi*golden lands 1 epsilon above 1.0 and
+    // sqrt2 squared 2 above 2.0. Asserting == would be asserting a rounding
+    // accident, so the tolerance is stated in epsilon, the unit this module
+    // itself exports, and is wide enough to absorb the error and nothing more.
+    set tol = math::consts::epsilon() * 4.0
+    if math::abs(math::consts::phi() * math::consts::golden() - 1.0) > tol { return false }
+    if math::abs(math::consts::sqrt2() * math::consts::sqrt2() - 2.0) > tol { return false }
+    if math::abs(math::consts::log2e() * math::consts::ln2() - 1.0) > tol { return false }
+    return true
+}

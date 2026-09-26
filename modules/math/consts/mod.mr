@@ -1,2 +1,42 @@
-# Kioto 3.0.0 — math::consts (not implemented yet).
-# See modules/math/mod.mr for the build order and todo.md for the symbol inventory.
+// math::consts — mathematical constants, computed in Mire with no externs.
+//
+// Every value is the correctly-rounded f64 nearest the real constant, written
+// as the shortest decimal that round-trips to those exact bits. Mire parses f64
+// literals with full double precision, so these are the same numbers C's M_PI
+// and friends evaluate to, not approximations of them.
+//
+// IEEE-754 doubles cannot hold these to more than ~15-17 significant digits, so
+// a longer decimal would only add noise: everything past the representable
+// digits is rounded away at parse time anyway.
+//
+// These are pub fn rather than cons because a cons is not readable through a
+// dotted path: neither `math::consts::pi` from a consumer nor a sibling read
+// inside this module resolves it. The function form is what 2.x shipped, so
+// keeping it also keeps those call sites working unchanged.
+
+// Circle constant, half a turn in radians.
+pub fn pi: () :f64 { return 3.141592653589793 }
+// Full turn in radians, 2*pi.
+pub fn tau: () :f64 { return 6.283185307179586 }
+// Euler's number, base of the natural logarithm.
+pub fn e: () :f64 { return 2.718281828459045 }
+// Golden ratio, (1 + sqrt(5)) / 2.
+pub fn phi: () :f64 { return 1.618033988749895 }
+// Golden ratio conjugate, phi - 1, equal to 1/phi.
+pub fn golden: () :f64 { return 0.618033988749895 }
+
+// Square roots of small integers, handy for normalising a vector without
+// reaching for power::sqrt.
+pub fn sqrt2: () :f64 { return 1.4142135623730951 }
+pub fn sqrt3: () :f64 { return 1.7320508075688772 }
+pub fn sqrt5: () :f64 { return 2.23606797749979 }
+
+// Logarithms and their reciprocals, the natural way to convert bases.
+pub fn ln2: () :f64 { return 0.6931471805599453 }
+pub fn ln10: () :f64 { return 2.302585092994046 }
+// log2(e), the factor that turns a natural log into a base-2 log.
+pub fn log2e: () :f64 { return 1.4426950408889634 }
+
+// The smallest gap between 1.0 and the next representable double. Any
+// difference claimed to be smaller than this is comparing rounding noise.
+pub fn epsilon: () :f64 { return 0.0000000000000002220446049250313 }

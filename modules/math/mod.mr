@@ -19,6 +19,7 @@
 // the right trade for a tier whose job is to be correct and dependency-free.
 
 load mire::vec
+load kioto::math::consts
 
 // 2^52, the first magnitude at which every f64 is already an integer.
 cons LIMIT = 4503599627370496.0 :f64
@@ -81,7 +82,9 @@ pub fn trunc: (x :f64) :f64 {
     set neg = x < 0.0
     set a = if neg { 0.0 - x } else { x } :f64 mut
     if a < 1.0 {
-        return x
+        // |x| below 1 has no integer part, so the answer is zero for either
+        // sign. Returning x here would hand back -0.75 unchanged.
+        return 0.0
     }
     set t = 0.0 :f64 mut
     set p = 2251799813685248.0 :f64 mut
