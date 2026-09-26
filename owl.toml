@@ -1,7 +1,7 @@
 [project]
 name = "kioto"
 version = "3.0.0"
-description = "Standard lib for Mire"
+description = "Kioto is the Avenys/mire standard library"
 entry = "src/mod.mr"
 
 [build]
@@ -9,7 +9,7 @@ compiler = "mire"
 profile = "debug"
 opt-level = 0
 artifact = "shared"
-runtime = "full"
+runtime = "minimal"
 target = "x86_64-unknown-linux-gnu"
 panic = "abort"
 incremental = true

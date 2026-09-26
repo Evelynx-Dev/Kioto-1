@@ -1,9 +1,10 @@
-module kioto
-
-/! Kioto 3.0.0 — punto de entrada.
-!
-! Los `load kioto::<mod>` se incorporan en las fases 2 y 3 del plan de
-! migracion, a medida que cada modulo se traslada a `modules/` con
-! extension `.mr`. Durante el reset del esqueleto este fichero no carga
-! nada todavia.
-!/
+// Kioto 3.0.0 — package entry point.
+//
+// This file is deliberately not useful on its own. Its only job is to exercise
+// the `load kioto::<module>` statements below against the [exports] table in
+// owl.toml, so a broken export or an unresolvable path fails loudly here
+// instead of in some consumer's build.
+//
+// The load statements are added in phases 2 and 3, as each module is moved
+// into modules/ with the .mr extension. During the skeleton reset this file
+// deliberately loads nothing.
