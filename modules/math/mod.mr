@@ -20,6 +20,7 @@
 
 load mire::vec
 load kioto::math::consts
+load kioto::math::seq
 
 // 2^52, the first magnitude at which every f64 is already an integer.
 cons LIMIT = 4503599627370496.0 :f64

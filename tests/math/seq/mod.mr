@@ -1,0 +1,153 @@
+// math::seq — the three ported range builders, checked against v2 exactly.
+//
+// v2 implemented these in C as rt_math_range_i64, rt_math_range_between_i64 and
+// rt_math_range_step_i64. Those wrappers are gone from the current runtime, so
+// v2 cannot be executed side by side any more; instead the expected values here
+// were produced by transcribing the deleted C into a standalone harness and
+// running it. This file is the assertion set for that transcript:
+//
+//     range(end)          -> step(0, end, 1)
+//     between(start, end) -> step(start, end, start <= end ? 1 : -1)
+//     step(start, end, n) -> n == 0 ? empty
+//                            : n > 0  ? for (v = start; v < end; v += n)
+//                            :           for (v = start; v > end; v += n)
+//
+// The descending arms carry most of the weight here. v2's own tests only ever
+// counted upwards, so a port that quietly refused a negative stride would pass
+// everything v2 could throw at it while dropping a documented behaviour, and
+// that is exactly the mistake this file was written to catch.
+
+load kioto
+load mire::vec
+
+@[test]
+pub fn range_counts_up_to_but_not_including_end: () :bool {
+    set r = math::seq::range(5)
+    if vec::len(r) != 5 { return false }
+    if vec::get::i64(r 0) != 0 { return false }
+    if vec::get::i64(r 4) != 4 { return false }
+    set one = math::seq::range(1)
+    if vec::len(one) != 1 { return false }
+    if vec::get::i64(one 0) != 0 { return false }
+    return true
+}
+
+@[test]
+pub fn range_of_zero_or_less_is_empty: () :bool {
+    if vec::len(math::seq::range(0)) != 0 { return false }
+    if vec::len(math::seq::range(0 - 5)) != 0 { return false }
+    return true
+}
+
+@[test]
+pub fn between_counts_up_when_start_is_the_lower_bound: () :bool {
+    set b = math::seq::between(2 6)
+    if vec::len(b) != 4 { return false }
+    if vec::get::i64(b 0) != 2 { return false }
+    if vec::get::i64(b 3) != 5 { return false }
+    return true
+}
+
+@[test]
+pub fn between_counts_down_when_start_exceeds_end: () :bool {
+    set d = math::seq::between(6 2)
+    if vec::len(d) != 4 { return false }
+    if vec::get::i64(d 0) != 6 { return false }
+    if vec::get::i64(d 3) != 3 { return false }
+    set w = math::seq::between(10 0)
+    if vec::len(w) != 10 { return false }
+    if vec::get::i64(w 0) != 10 { return false }
+    if vec::get::i64(w 9) != 1 { return false }
+    return true
+}
+
+@[test]
+pub fn between_equal_bounds_is_empty: () :bool {
+    if vec::len(math::seq::between(3 3)) != 0 { return false }
+    if vec::len(math::seq::between(0 0)) != 0 { return false }
+    if vec::len(math::seq::between(5 5)) != 0 { return false }
+    return true
+}
+
+@[test]
+pub fn step_walks_by_its_stride: () :bool {
+    set s = math::seq::step(0 10 3)
+    if vec::len(s) != 4 { return false }
+    if vec::get::i64(s 0) != 0 { return false }
+    if vec::get::i64(s 1) != 3 { return false }
+    if vec::get::i64(s 3) != 9 { return false }
+    set w = math::seq::step(0 10 5)
+    if vec::len(w) != 2 { return false }
+    if vec::get::i64(w 1) != 5 { return false }
+    return true
+}
+
+@[test]
+pub fn step_stride_wider_than_the_span_yields_one_element: () :bool {
+    set s = math::seq::step(0 3 10)
+    if vec::len(s) != 1 { return false }
+    if vec::get::i64(s 0) != 0 { return false }
+    return true
+}
+
+// A negative stride is a feature, not a degenerate input: the bound flips to
+// "greater than" and the walk terminates. Refusing it would be a regression
+// against v2, so this is asserted as behaviour rather than as an error case.
+@[test]
+pub fn step_counts_down_on_a_negative_stride: () :bool {
+    set d = math::seq::step(10 0 0 - 1)
+    if vec::len(d) != 10 { return false }
+    if vec::get::i64(d 0) != 10 { return false }
+    if vec::get::i64(d 9) != 1 { return false }
+    return true
+}
+
+@[test]
+pub fn step_negative_stride_that_never_reaches_end_is_empty: () :bool {
+    if vec::len(math::seq::step(0 10 0 - 1)) != 0 { return false }
+    return true
+}
+
+@[test]
+pub fn step_zero_stride_is_empty: () :bool {
+    if vec::len(math::seq::step(0 10 0)) != 0 { return false }
+    if vec::len(math::seq::step(5 5 1)) != 0 { return false }
+    return true
+}
+
+@[test]
+pub fn step_keeps_negative_origins: () :bool {
+    set s = math::seq::step(0 - 3 4 2)
+    if vec::len(s) != 4 { return false }
+    if vec::get::i64(s 0) != 0 - 3 { return false }
+    if vec::get::i64(s 3) != 3 { return false }
+    return true
+}
+
+@[test]
+pub fn repeat_fills_a_constant: () :bool {
+    set r = math::seq::repeat(7 4)
+    if vec::len(r) != 4 { return false }
+    if vec::get::i64(r 0) != 7 { return false }
+    if vec::get::i64(r 3) != 7 { return false }
+    if vec::len(math::seq::repeat(7 0)) != 0 { return false }
+    if vec::len(math::seq::repeat(7 0 - 3)) != 0 { return false }
+    return true
+}
+
+@[test]
+pub fn take_and_drop_clamp_to_the_list: () :bool {
+    set src = math::seq::range(5)
+    set head = math::seq::take(src 2)
+    if vec::len(head) != 2 { return false }
+    if vec::get::i64(head 0) != 0 { return false }
+    if vec::get::i64(head 1) != 1 { return false }
+    set tail = math::seq::drop(src 2)
+    if vec::len(tail) != 3 { return false }
+    if vec::get::i64(tail 0) != 2 { return false }
+    if vec::len(math::seq::take(src 99)) != 5 { return false }
+    if vec::len(math::seq::drop(src 99)) != 0 { return false }
+    if vec::len(math::seq::take(src 0 - 1)) != 0 { return false }
+    if vec::len(math::seq::drop(src 0)) != 5 { return false }
+    return true
+}

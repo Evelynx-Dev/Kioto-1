@@ -1,2 +1,99 @@
-# Kioto 3.0.0 — math::seq (not implemented yet).
-# See modules/math/mod.mr for the build order and todo.md for the symbol inventory.
+// math::seq — integer sequences, in pure Mire with no externs.
+//
+// In v2 these lived in math::number_theoretic as rt_math_range_i64,
+// rt_math_range_between_i64 and rt_math_range_step_i64, and the first three
+// functions here are a direct port of those. The half-open convention is
+// carried over unchanged: the start is included, the end is excluded, and the
+// direction is implied by the arguments, so the length is always derivable
+// without walking it.
+//
+// The C original was:
+//
+//     range(end)            -> step(0, end, 1)
+//     between(start, end)   -> step(start, end, start <= end ? 1 : -1)
+//     step(start, end, n)   -> n == 0 ? empty
+//                              : n > 0  ? for (v = start; v < end; v += n)
+//                              :           for (v = start; v > end; v += n)
+//
+// That last arm is the part worth being explicit about, because it is the one
+// an ascending-only reading gets wrong. A negative stride is not rejected and
+// does not run away: the bound flips with the direction, so between(6 2) counts
+// down to [6 5 4 3] and step(10 0 0 -1) counts down to ten elements. Only a zero
+// stride is degenerate, and it returns empty because the loop would never
+// advance. Porting this as "ascending only" is a silent capability regression,
+// and the v2 test suite never caught it because it only ever walked upwards.
+//
+// A degenerate range returns an empty vector rather than raising. These
+// functions exist to drive loops, and a caller whose bounds came from arithmetic
+// should not have to guard every call to avoid a panic three frames deeper.
+//
+// V2's `math::minlist`/`maxlist`/`sum` do not live here — they reduce an
+// existing list rather than build one, so they belong to math::int (sum) and
+// math::stats. See todo.md.
+
+load mire::vec
+
+// [0, end) counting up. range(0) and any negative end are empty.
+pub fn range: (end :i64) :vec[i64] {
+    return step(0, end, 1)
+}
+
+// [start, end) counting up when start <= end, and [start, end) counting down
+// when start > end. So between(2 6) is [2 3 4 5] and between(6 2) is
+// [6 5 4 3] — the start is always included and the end always excluded, only
+// the direction depends on which bound is larger.
+pub fn between: (start :i64, end :i64) :vec[i64] {
+    if start <= end { return step(start, end, 1) }
+    return step(start, end, 0 - 1)
+}
+
+// start, start + n, start + 2n, ... up to but not including end when n is
+// positive, and down to but not including end when it is negative. A zero
+// stride is empty. step(0 10 3) is [0 3 6 9] and step(10 0 0 -1) is
+// [10 9 8 7 6 5 4 3 2 1].
+pub fn step: (start :i64, end :i64, n :i64) :vec[i64] {
+    set out = [] :vec[i64] mut
+    if n > 0 {
+        set i = start :i64 mut
+        while i < end {
+            set out = vec::push::i64(out, i)
+            set i += n
+        }
+    } elif n < 0 {
+        set i = start :i64 mut
+        while i > end {
+            set out = vec::push::i64(out, i)
+            set i += n
+        }
+    }
+    return out
+}
+
+// A vector of `count` copies of `value`. New in 3.0 — v2 had no counterpart —
+// and the generalisation the three above could have been written in terms of.
+pub fn repeat: (value :i64, count :i64) :vec[i64] {
+    set out = [] :vec[i64] mut
+    if count > 0 {
+        set i = 0 :i64 mut
+        while i < count {
+            set out = vec::push::i64(out, value)
+            set i += 1
+        }
+    }
+    return out
+}
+
+// The first n elements. New in 3.0. n is clamped into range rather than
+// rejected, matching what rt_list_slice already does underneath: a negative n
+// gives an empty vector and an n past the end gives the whole list, which is
+// what a caller trimming an optional prefix actually wants.
+pub fn take: (list :&vec[i64], n :i64) :vec[i64] {
+    return vec::slice(list, 0, n)
+}
+
+// Everything after the first n elements, clamped the same way as take, so
+// drop 0 is a copy of the list and drop of at least the length is empty. New
+// in 3.0.
+pub fn drop: (list :&vec[i64], n :i64) :vec[i64] {
+    return vec::slice(list, n, vec::len(list))
+}

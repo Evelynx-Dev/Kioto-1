@@ -29,6 +29,23 @@ sources are now `modules/**/*.mr` behind a single `src/mod.mr` entry point.
   correctly-rounded double. The tests assert the raw IEEE-754 bit patterns
   rather than a printed value, so a dropped digit fails instead of quietly
   shipping a slightly wrong constant.
+- **`math::seq`, 6 functions** — `range between step`, ported from the v2
+  externs `rt_math_range_i64` / `_between_` / `_step_`, plus `repeat take drop`
+  which are new. All in Mire, no extern.
+  The port keeps the half-open convention and the direction implied by the
+  arguments, so `between(6 2)` counts *down* to `[6 5 4 3]` and
+  `step(10 0 -1)` yields ten elements. A negative stride is a supported
+  behaviour, not a degenerate input: the loop bound flips to `> end` so the
+  walk terminates. Only a zero stride is empty.
+  v2 could no longer be executed to compare against, because its C
+  implementation has been removed from the runtime along with the rest of
+  `rt_math_*`. The expected values were instead taken from a standalone
+  transcript of the deleted C, compiled and run, and the two agree on all 19
+  cases: 5 `range`, 6 `between` and 8 `step`. This matters because v2's own
+  tests only ever counted upwards, so a port that refused negative strides
+  would have passed everything v2 could throw at it while dropping documented
+  behaviour. `tests/math/seq` folds those 19 transcripts into 13 cases, several
+  of which assert more than one.
 
 ### Fixed
 - **`trunc` ignored the sign below one** — the `|x| < 1` fast path returned
@@ -46,7 +63,7 @@ sources are now `modules/**/*.mr` behind a single `src/mod.mr` entry point.
   and `str`). This matches 2.x, where `sum_i64`, `mean`, `minlist` and `maxlist`
   were i64-based and only `fsum` and `prod` were genuinely f64. Restoring the
   f64 collections means teaching `mire::vec` about f64 first.
-- `math::seq`, `int`, `float`, `sum`, `stats`, `complex`, `decimal`, `random`,
+- `math::int`, `float`, `sum`, `stats`, `complex`, `decimal`, `random`,
   `power`, `trig`, `hyperbolic` and `special` are declared in the manifest and
   still to be written.
 - **`cons` is currently not readable through a dotted path**, from a consumer or

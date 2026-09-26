@@ -115,6 +115,37 @@ Products of these constants are **not** exact in floating point — `phi * golde
 lands one epsilon above `1.0` — so identity checks need a tolerance rather than
 `==`.
 
+### Sequences
+
+```mire
+math::seq::range(5)              // [0 1 2 3 4]
+math::seq::between(2 6)          // [2 3 4 5]
+math::seq::step(0 10 3)          // [0 3 6 9]
+math::seq::repeat(7 3)           // [7 7 7]
+math::seq::take(v 2)             // the first two elements
+math::seq::drop(v 2)             // everything after the first two
+```
+
+Every range is half-open: the start is included, the end is excluded. The
+direction follows from the arguments rather than from a separate flag, so
+`between` counts down when the start is the larger bound:
+
+```mire
+math::seq::between(6 2)          // [6 5 4 3], not empty
+math::seq::step(10 0 0 - 1)      // [10 9 8 7 6 5 4 3 2 1]
+```
+
+A negative stride is therefore a supported walk, not a rejected input — the loop
+bound flips to "greater than", so it terminates. Only a zero stride is empty,
+because the loop would never advance. A degenerate range always returns an empty
+vector rather than raising: these exist to drive loops, and a caller whose
+bounds came from arithmetic should not have to guard every call to turn a
+miscomputed count into a panic three frames deeper.
+
+`take` and `drop` clamp instead of rejecting, so a negative count gives an empty
+vector and a count past the end gives the whole list or nothing, whichever is
+being taken or dropped.
+
 ## Testing
 
 Kioto's tests are run with the compiler's own runner:
