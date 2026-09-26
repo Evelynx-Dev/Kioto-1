@@ -1,0 +1,6 @@
+[project]
+name = "sign"
+entry = "mod.mr"
+
+[exports]
+ed25519 = "ed25519.mr"

@@ -1,0 +1,53 @@
+module async
+load kioto::async::_externs
+
+pub struct Channel {
+    handle :i64
+}
+
+pub struct Task {
+    value :str
+}
+
+// ── task ────────────────────────────────────────────────────────
+pub fn task: () {
+    pub fn ready: (value :str) :Task {
+        return (Task value: value)
+    }
+
+    pub fn value: (t :Task, fallback :str) :str {
+        return t.value
+    }
+}
+
+// ── channel ─────────────────────────────────────────────────────
+pub fn channel: () {
+    pub fn create: () :Channel {
+        set h = pal_channel_create()
+        return (Channel handle: h)
+    }
+
+    pub fn send: (ch :&Channel, data :&str) :i64 {
+        return pal_channel_send(ch.handle, data, len(data))
+    }
+
+    pub fn recv: (ch :&Channel, buf :&mut str, cap :i64) :i64 {
+        return rt_channel_recv_into(ch.handle, buf, cap)
+    }
+
+    pub fn close: (ch :&Channel) {
+        use pal_channel_close(ch.handle)
+    }
+}
+
+// ── process ─────────────────────────────────────────────────────
+pub fn spawn: (cmd :&str) :i64 {
+    set argv = rt_build_argv(cmd, [] :vec[str])
+    set h = pal_proc_create(argv, 0 :i32, 0, 0, 0)
+    use rt_free_argv(argv, 1)
+    return h
+}
+
+pub fn wait: (pid :i64) :i64 {
+    return pal_proc_wait(pid)
+}

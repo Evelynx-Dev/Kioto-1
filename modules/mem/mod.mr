@@ -1,0 +1,9 @@
+module mem
+
+extern fn pal_mem_total: () :i64 lib "c"
+extern fn pal_mem_available: () :i64 lib "c"
+extern fn pal_mem_process: () :i64 lib "c"
+
+pub fn total: () :i64 { return pal_mem_total() }
+pub fn available: () :i64 { return pal_mem_available() }
+pub fn process: () :i64 { return pal_mem_process() }

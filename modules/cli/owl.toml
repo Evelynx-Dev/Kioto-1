@@ -1,0 +1,6 @@
+[project]
+name = "cli"
+entry = "mod.mr"
+
+[exports]
+_externs = "_externs.mr"

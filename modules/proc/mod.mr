@@ -1,0 +1,86 @@
+// Kioto 3.0.0 — proc module.
+//
+// Process execution is argv-based only: there is no shell anywhere in this
+// module, so a command string can never be re-parsed by /bin/sh. Callers that
+// genuinely want shell semantics have to say so explicitly, in their own code,
+// by invoking a shell as an argv[0].
+
+module proc
+load kioto::proc::_externs
+
+pub struct Process {
+    handle :i64
+}
+
+cons PAL_SPAWN_WAIT = 1 :i32
+
+pub fn run: () {
+    pub fn create: (cmd :&str, args :vec[str], flags :i32, stdin_ch :i64, stdout_ch :i64, stderr_ch :i64) :Process {
+        set argv = rt_build_argv(cmd, args)
+        set argc = rt_vec_len(args) + 1
+        set h = pal_proc_create(argv, flags, stdin_ch, stdout_ch, stderr_ch)
+        use rt_free_argv(argv, argc)
+        return (Process handle: h)
+    }
+
+    pub fn spawn: (cmd :&str, args :vec[str]) :i64 {
+        set argv = rt_build_argv(cmd, args)
+        set argc = rt_vec_len(args) + 1
+        set h = pal_proc_create(argv, 1 :i32, 0, 0, 0)
+        use rt_free_argv(argv, argc)
+        if h <= 0 { return -1 }
+        set exit_code = pal_proc_wait(h)
+        use pal_proc_close(h)
+        return exit_code
+    }
+
+    // Captures stdout as an owned string. Prefer this over matching on the
+    // output text: proc::run::last_exit() is the reliable success signal.
+    pub fn output: (cmd :&str, args :vec[str]) :str {
+        return rt_proc_capture_argv(cmd, args)
+    }
+
+    // cwd is applied with chdir before exec (exit 126 on failure);
+    // merge_err folds stderr into the captured pipe.
+    pub fn output_cwd: (cmd :&str, args :vec[str], cwd :&str, merge_err :bool) :str {
+        set flag = 0 :i64 mut
+        if merge_err { set flag = 1 }
+        return rt_proc_capture_argv2(cmd, args, cwd, flag)
+    }
+
+    pub fn last_exit: () :i64 {
+        return rt_proc_last_exit()
+    }
+
+    // Reads a line from /dev/tty directly, without spawning a subprocess.
+    // Returns "y" when there is no terminal, which keeps Y/n prompts safe.
+    pub fn read_line: () :str {
+        return rt_read_tty()
+    }
+}
+
+pub fn wait: (p :Process) :i64 {
+    return pal_proc_wait(p.handle)
+}
+
+pub fn kill: (p :Process) :bool {
+    return pal_proc_kill(p.handle) != 0
+}
+
+pub fn close: (p :Process) {
+    use pal_proc_close(p.handle)
+}
+
+pub fn stream: () {
+    pub fn input: (p :Process) :i64 {
+        return pal_proc_stdin(p.handle)
+    }
+
+    pub fn output: (p :Process) :i64 {
+        return pal_proc_stdout(p.handle)
+    }
+
+    pub fn error: (p :Process) :i64 {
+        return pal_proc_stderr(p.handle)
+    }
+}

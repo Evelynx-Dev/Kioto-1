@@ -1,0 +1,6 @@
+[project]
+name = "random"
+entry = "mod.mr"
+
+[exports]
+secure = "secure.mr"

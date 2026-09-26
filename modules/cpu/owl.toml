@@ -1,0 +1,9 @@
+[project]
+name = "cpu"
+entry = "mod.mr"
+
+[exports]
+time    = "time.mr"
+elapsed = "elapsed.mr"
+freq    = "freq.mr"
+cycles  = "cycles.mr"

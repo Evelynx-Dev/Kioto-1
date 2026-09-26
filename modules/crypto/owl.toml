@@ -1,0 +1,10 @@
+[project]
+name = "crypto"
+entry = "mod.mr"
+
+[exports]
+hash   = "hash/mod.mr"
+encode = "encode/mod.mr"
+random = "random/mod.mr"
+sign   = "sign/mod.mr"
+checksum = "checksum/mod.mr"

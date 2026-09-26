@@ -1,0 +1,6 @@
+[project]
+name = "strings"
+entry = "mod.mr"
+
+[exports]
+_externs = "_externs.mr"

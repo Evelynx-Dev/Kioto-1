@@ -1,10 +1,32 @@
 // Kioto 3.0.0 — package entry point.
 //
-// This file is deliberately not useful on its own. Its only job is to exercise
-// the `load kioto::<module>` statements below against the [exports] table in
-// owl.toml, so a broken export or an unresolvable path fails loudly here
-// instead of in some consumer's build.
+// A bare `load kioto` resolves to this file, so it is what makes the whole
+// library visible to a consumer: each `load` below pulls in one [exports] entry
+// from owl.toml. A broken export or an unresolvable path therefore fails loudly
+// here, in the package itself, instead of surfacing as a missing function in
+// someone else's build.
 //
-// The load statements are added in phases 2 and 3, as each module is moved
-// into modules/ with the .mr extension. During the skeleton reset this file
-// deliberately loads nothing.
+// The load list is the package's public surface. Keep it in sync with the
+// [exports] table in owl.toml.
+//
+// Per-module notes:
+//   - The 2.x layout under core/ is gone; everything now lives in modules/ with
+//     the .mr extension.
+//   - math is a placeholder: the 3.0 math surface is a pure-Mire rewrite and
+//     lands submodule by submodule (see modules/math/mod.mr).
+
+@[no_main]
+module kioto
+load kioto::strings
+load kioto::time
+load kioto::fs
+load kioto::env
+load kioto::proc
+load kioto::async
+load kioto::mem
+load kioto::cpu
+load kioto::math
+load kioto::net
+load kioto::log
+load kioto::cli
+load kioto::crypto

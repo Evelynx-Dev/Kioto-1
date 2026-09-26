@@ -1,0 +1,7 @@
+[project]
+name = "fs"
+entry = "mod.mr"
+
+[exports]
+_externs = "_externs.mr"
+check = "check.mr"

@@ -1,0 +1,8 @@
+module sha512
+
+load kioto::crypto::hash::_externs
+
+/! Computes lowercase SHA-512 through the runtime's libsodium binding. !/
+pub fn hash: (msg :&str) :str {
+    return rt_crypto_sha512_hex(msg)
+}

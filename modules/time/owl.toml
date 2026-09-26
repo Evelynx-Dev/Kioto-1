@@ -1,0 +1,7 @@
+[project]
+name = "time"
+entry = "mod.mr"
+
+[exports]
+unix    = "unix.mr"
+elapsed = "elapsed.mr"

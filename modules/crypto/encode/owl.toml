@@ -1,0 +1,7 @@
+[project]
+name = "encode"
+entry = "mod.mr"
+
+[exports]
+hex    = "hex.mr"
+base64 = "base64.mr"

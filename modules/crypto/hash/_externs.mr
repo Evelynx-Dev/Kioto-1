@@ -1,0 +1,8 @@
+module _externs
+// Crypto C runtime
+
+extern fn rt_crypto_byte_at: (s :&str, idx :i64) :i64 lib "c"
+extern fn rt_crypto_sha256_hex: (s :&str) :str lib "c"
+extern fn rt_crypto_sha512_hex: (s :&str) :str lib "c"
+extern fn rt_crypto_sha256_file_hex: (path :&str) :str lib "c"
+extern fn rt_crypto_sha512_file_hex: (path :&str) :str lib "c"

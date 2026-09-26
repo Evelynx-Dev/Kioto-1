@@ -1,0 +1,82 @@
+module base64
+
+load mire::vec
+load kioto::strings
+
+extern fn rt_crypto_base64_file: (path :&str) :str lib "c"
+
+fn ALPHABET: () :str {
+    return "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+}
+
+fn char_value: (c :str) :i64 {
+    set idx = strings::index(ALPHABET(), c)
+    if idx >= 0 { return idx }
+    if c == "=" { return 0 }
+    return -1
+}
+
+pub fn encode: (bytes :vec[i64]) :str {
+    set n = vec::len(bytes)
+    set s = "" :str mut
+    set alphabet = ALPHABET()
+    set i = 0 :i64 mut
+    while i < n {
+        set b0 = vec::get::i64(bytes, i) & 0xFF
+        set b1 = 0 :i64 mut
+        if i + 1 < n { set b1 = vec::get::i64(bytes, i + 1) & 0xFF }
+        set b2 = 0 :i64 mut
+        if i + 2 < n { set b2 = vec::get::i64(bytes, i + 2) & 0xFF }
+        set triple = (b0 << 16) | (b1 << 8) | b2
+        set c0 = (triple >> 18) & 0x3F
+        set c1 = (triple >> 12) & 0x3F
+        set c2 = (triple >> 6) & 0x3F
+        set c3 = triple & 0x3F
+        set s = s + strings::substr(alphabet c0 1)
+        set s = s + strings::substr(alphabet c1 1)
+        if i + 1 < n { set s = s + strings::substr(alphabet c2 1) } else { set s = s + "=" }
+        if i + 2 < n { set s = s + strings::substr(alphabet c3 1) } else { set s = s + "=" }
+        set i = i + 3
+    }
+    return s
+}
+
+pub fn decode: (s :&str) :vec[i64] {
+    set len = strings::len(s)
+    set result = [] :vec[i64] mut
+    if len == 0 { return result }
+    if len % 4 != 0 { return result }
+    set i = 0 :i64 mut
+    while i < len {
+        set v0 = char_value(strings::substr(s i 1))
+        set v1 = char_value(strings::substr(s i + 1 1))
+        set v2 = char_value(strings::substr(s i + 2 1))
+        set v3 = char_value(strings::substr(s i + 3 1))
+        if v0 < 0 || v1 < 0 { return [] :vec[i64] }
+        set pad2 = decode_is_pad(s, i + 2, len)
+        set pad3 = decode_is_pad(s, i + 3, len)
+        if pad2 && !pad3 { return [] :vec[i64] }
+        if (pad2 || pad3) && i + 4 < len { return [] :vec[i64] }
+        if !pad2 && v2 < 0 { return [] :vec[i64] }
+        if !pad3 && v3 < 0 { return [] :vec[i64] }
+        set triple = (v0 << 18) | (v1 << 12) | (v2 << 6) | v3
+        set result = vec::push::i64(result, (triple >> 16) & 0xFF)
+        if !pad2 { set result = vec::push::i64(result, (triple >> 8) & 0xFF) }
+        if !pad3 { set result = vec::push::i64(result, triple & 0xFF) }
+        set i = i + 4
+    }
+    return result
+}
+
+fn decode_is_pad: (s :&str, pos :i64, slen :i64) :bool {
+    if pos >= slen { return true }
+    set ch = strings::substr(s pos 1)
+    return ch == "="
+}
+
+/! Base64-encodes the raw contents of a file (binary-safe). Used to turn a
+   signature or public-key file into the text form expected by the Ed25519
+   verification bindings. Returns "" when the file cannot be read. !/
+pub fn encode_file: (path :&str) :str {
+    return rt_crypto_base64_file(path)
+}

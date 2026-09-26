@@ -1,0 +1,8 @@
+[project]
+name = "hash"
+entry = "mod.mr"
+
+[exports]
+_externs = "_externs.mr"
+sha256 = "sha256.mr"
+sha512 = "sha512.mr"

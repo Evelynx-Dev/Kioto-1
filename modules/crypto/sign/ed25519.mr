@@ -1,0 +1,81 @@
+module ed25519
+
+load kioto::strings
+load kioto::fs
+
+pub struct SecretKey {
+    handle :i64
+}
+
+pub struct PublicKey {
+    handle :i64
+}
+
+extern fn pal_secret_create: (algorithm :i64) :i64 lib "c"
+extern fn pal_secret_export_public: (secret :i64) :i64 lib "c"
+extern fn pal_secret_sign: (secret :i64, msg :&str, msg_len :i64, buf :&mut str, buf_len :i64) :i64 lib "c"
+extern fn pal_pubkey_verify: (pubkey :i64, msg :&str, msg_len :i64, sig :&str, sig_len :i64) :bool lib "c"
+extern fn rt_crypto_ed25519_verify_b64: (pubkey_b64 :&str, data_file :&str, sig_b64 :&str) :bool lib "c"
+extern fn rt_crypto_ed25519_verify_file: (pubkey_b64 :&str, data_file :&str, sig_file :&str) :bool lib "c"
+extern fn rt_crypto_ed25519_pubkey_raw_b64: (pem_path :&str) :str lib "c"
+extern fn pal_secret_close: (secret :i64) lib "c"
+extern fn pal_pubkey_free: (pubkey :i64) lib "c"
+
+cons PAL_CRYPTO_ED25519 = 1 :i64
+
+pub fn secret: () {
+    pub fn new: () :SecretKey {
+        set h = pal_secret_create(1 :i64)
+        return (SecretKey handle: h)
+    }
+
+    pub fn public: (secret :SecretKey) :PublicKey {
+        set h = pal_secret_export_public(secret.handle)
+        return (PublicKey handle: h)
+    }
+
+    pub fn sign: (secret :SecretKey, msg :&str) :str {
+        set msg_len = strings::len(msg)
+        set buf = strings::repeat("\0" 64) :str mut
+        set sig_len = pal_secret_sign(secret.handle, msg, msg_len, buf, 64)
+        if sig_len == 64 { return buf }
+        return ""
+    }
+
+    pub fn close: (secret :SecretKey) {
+        use pal_secret_close(secret.handle)
+    }
+}
+
+pub fn public: () {
+    pub fn verify: (pubkey :PublicKey, msg :&str, sig :&str) :bool {
+        set msg_len = strings::len(msg)
+        set sig_len = strings::len(sig)
+        return pal_pubkey_verify(pubkey.handle, msg, msg_len, sig, sig_len)
+    }
+
+    /! Verifies a detached Ed25519 signature supplied as base64 against the
+       binary contents of `data_file` and a base64 raw public key (32 bytes).
+       Everything is decoded in the runtime binding; no shell or temp files. !/
+    pub fn verify_b64: (pubkey_b64 :&str, data_file :&str, sig_b64 :&str) :bool {
+        if pubkey_b64 == "" || sig_b64 == "" { return false }
+        return rt_crypto_ed25519_verify_b64(pubkey_b64, data_file, sig_b64)
+    }
+
+    /! Same as verify_b64 but the signature is a raw 64-byte file. !/
+    pub fn verify_file: (pubkey_b64 :&str, data_file :&str, sig_file :&str) :bool {
+        if pubkey_b64 == "" { return false }
+        return rt_crypto_ed25519_verify_file(pubkey_b64, data_file, sig_file)
+    }
+
+    /! Reads a PEM-encoded Ed25519 public key file and returns its raw 32-byte
+       key as base64 (the form the registry/publish manifests use). "" on error. !/
+    pub fn raw_b64_from_pem: (pem_path :&str) :str {
+        if !fs::exists(pem_path) { return "" }
+        return rt_crypto_ed25519_pubkey_raw_b64(pem_path)
+    }
+
+    pub fn close: (pubkey :PublicKey) {
+        use pal_pubkey_free(pubkey.handle)
+    }
+}

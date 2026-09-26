@@ -1,0 +1,45 @@
+module secure
+
+load kioto::strings
+load mire::vec
+
+extern fn pal_random_fill: (buf :&mut str, len :i64) :bool lib "c"
+
+pub fn bytes: (n :i64) :vec[i64] {
+    set buf = strings::repeat("\0" n) :str mut
+    set ok = pal_random_fill(buf, n)
+    if !ok { return [] :vec[i64] }
+    set result = [] :vec[i64] mut
+    set i = 0 :i64 mut
+    while i < n {
+        set b = strings::char_at(buf, i) :i64
+        set result = vec::push::i64(result, b & 0xFF)
+        set i += 1
+    }
+    return result
+}
+
+pub fn seed: (size :i64) :str {
+    set raw = bytes(size)
+    set result = "" :str mut
+    set hex_tbl = "0123456789abcdef"
+    set i = 0 :i64 mut
+    while i < size {
+        set b = vec::get::i64(raw, i) & 0xFF
+        set result = result + strings::substr(hex_tbl b >> 4 1) + strings::substr(hex_tbl b & 0x0F 1)
+        set i += 1
+    }
+    return result
+}
+
+pub fn i64: () :i64 {
+    set raw = bytes(8)
+    set result = 0 :i64 mut
+    set i = 0 :i64 mut
+    while i < 8 {
+        set b = vec::get::i64(raw, i) & 0xFF
+        set result = (result << 8) | b
+        set i += 1
+    }
+    return result
+}

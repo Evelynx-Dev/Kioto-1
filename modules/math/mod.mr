@@ -1,0 +1,15 @@
+// Kioto 3.0.0 — math module (placeholder).
+//
+// The 3.0 math surface is a from-scratch pure-Mire rewrite: every function is
+// computed in Mire itself, with no rt_math_* runtime dependency and no math.c
+// linked into the final binary. That is why this file starts empty instead of
+// carrying the 2.x code over.
+//
+// The 2.x layout (angle, constants, float_manip, number_theoretic) does not map
+// onto the 3.0 layout, so nothing here is a mechanical port.
+//
+// Submodules land one at a time, in this order:
+//   consts, seq, int, float, sum, stats, complex, decimal, random,
+//   power, trig, hyperbolic, special
+//
+// See todo.md for the per-symbol inventory and the accuracy rules.
