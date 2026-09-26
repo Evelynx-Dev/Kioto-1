@@ -49,9 +49,14 @@ sources are now `modules/**/*.mr` behind a single `src/mod.mr` entry point.
 - `math::seq`, `int`, `float`, `sum`, `stats`, `complex`, `decimal`, `random`,
   `power`, `trig`, `hyperbolic` and `special` are declared in the manifest and
   still to be written.
-- A `cons` is currently not readable through a dotted path, from a consumer or
+- **`cons` is currently not readable through a dotted path**, from a consumer or
   from the declaring module itself, so the constants ship as `pub fn` and
   module-internal limits have to be written as literals.
+- **This package is a library** (`artifact = "shared"`), which until the
+  compiler and owl both forced a test build to be an executable meant `owl test`
+  reported every file `ok` without running a single assertion. Both sides now
+  override the published artifact for a test build, and `mire test tests` and
+  `owl test` agree.
 
 ## [2.5.1] — 2026-09-26 (proc::run submodule compatibility)
 

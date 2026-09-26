@@ -123,13 +123,14 @@ Kioto's tests are run with the compiler's own runner:
 mire test tests --lib-dir ~/.owl/libs
 ```
 
-> **Do not gate on `owl test` for this package.** It reports success without
-> running any assertion. With a deliberately false assertion and both
-> `bin/.cache` and `tests/log` cleared, `owl test` reports
-> `tests/math/mod.mr ... ok` and `Ok: 16 - Passed: 16`, while `mire test`
-> reports `FAILED`. The same experiment in the compiler's own suite behaves
-> correctly under `owl`, so this is specific to kioto's manifest.
+`owl test` works too and gives the same result. It did not for a while: this is
+a library declaring `artifact = "shared"`, so the test build produced a shared
+object with no test entry point and every file came back `ok` having run no
+assertion. Both owl and the compiler now force a test build to be an executable,
+so the artifact a package publishes no longer has any say in it. The regression
+that pinned this down was a deliberately false assertion with the caches
+cleared, which `owl test` reported as `Ok: 16 - Passed: 16`.
 
-One caveat on the runner that is used: it over-reports. A single failing
-assertion marks every test in that file as failed. It does detect failures, but
-the count is not the number of bad tests.
+One caveat on the count, which is deliberately conservative: a file with several
+`@[test]` functions reports all of them as failed when any one fails. A red
+suite is never understated, but `Failed: 11` does not mean eleven broken tests.
