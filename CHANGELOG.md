@@ -1,5 +1,58 @@
 # kioto changelog
 
+## [3.0.0] — in development
+
+The library is being rebuilt in place. The 2.x `core/` tree, the `compat-v2`
+and `minimal-runtime` feature flags, and the `.mire` extension are all gone;
+sources are now `modules/**/*.mr` behind a single `src/mod.mr` entry point.
+
+### Changed
+- **Layout reset** — the 2.x `core/` tree is replaced by `modules/`, one
+  directory per module, each with its own `owl.toml` and `mod.mr`. `src/mod.mr`
+  is the package entry and is the file that makes the library visible to a
+  consumer, so a broken export or an unresolvable path fails inside the package
+  instead of surfacing as a missing function in someone else's build.
+- **All 12 non-math modules ported** from 2.x: `strings`, `time`, `fs`, `env`,
+  `proc`, `async`, `mem`, `cpu`, `net`, `log`, `cli`, `crypto`.
+- **Comments are English and `//` only** — `/! !/` is no longer accepted.
+- **README is being refilled module by module**, each entry landing in the same
+  commit as the real code for that module, rather than being written ahead of
+  the implementation.
+
+### Added — math, rebuilt without `rt_math_*`
+- **Quick tier, 14 symbols** — `abs sign min max clamp floor ceil round trunc
+  sum avg product minlist maxlist`, all computed in Mire. There is no
+  `rt_math_*` extern and no `math.c` in the link, so the module works in a
+  `runtime = "none"` build.
+- **`math::consts`, 12 constants** — `pi tau e phi golden sqrt2 sqrt3 sqrt5
+  ln2 ln10 log2e epsilon`, as the shortest decimal that round-trips to the
+  correctly-rounded double. The tests assert the raw IEEE-754 bit patterns
+  rather than a printed value, so a dropped digit fails instead of quietly
+  shipping a slightly wrong constant.
+
+### Fixed
+- **`trunc` ignored the sign below one** — the `|x| < 1` fast path returned
+  `x`, so `trunc(-0.75)` came back as `-0.75`. It now returns zero for either
+  sign. `floor`, `ceil` and `round` are all built on `trunc` and inherited the
+  same wrong answer for every negative fraction.
+- **`[exports]` in `modules/math/owl.toml`** listed the fourteen root helpers as
+  exports, which is not what the table means: it maps a namespace segment to a
+  submodule entry point, as `crypto` and `strings` already show. That mistake
+  also declared `sum` twice, once as `mod.mr` and once as `sum/mod.mr`.
+
+### Known gaps
+- The list reductions take `vec[i64]` and return `f64`, because the standard
+  library has no f64 element support at all (`vec::get` exists only for `i64`
+  and `str`). This matches 2.x, where `sum_i64`, `mean`, `minlist` and `maxlist`
+  were i64-based and only `fsum` and `prod` were genuinely f64. Restoring the
+  f64 collections means teaching `mire::vec` about f64 first.
+- `math::seq`, `int`, `float`, `sum`, `stats`, `complex`, `decimal`, `random`,
+  `power`, `trig`, `hyperbolic` and `special` are declared in the manifest and
+  still to be written.
+- A `cons` is currently not readable through a dotted path, from a consumer or
+  from the declaring module itself, so the constants ship as `pub fn` and
+  module-internal limits have to be written as literals.
+
 ## [2.5.1] — 2026-09-26 (proc::run submodule compatibility)
 
 ### Added
