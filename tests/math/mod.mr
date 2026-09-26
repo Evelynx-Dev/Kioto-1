@@ -1,0 +1,136 @@
+// math quick tier: scalar f64 helpers and the i64 list reductions.
+//
+// The rounding cases deliberately include negatives and exact halves, because
+// trunc/floor/ceil disagree with each other exactly there and a happy-path-only
+// test would miss a sign error in any of the three.
+
+load kioto
+load mire::vec
+
+@[test]
+pub fn abs_and_sign: () :bool {
+    if math::abs(0.0 - 2.5) != 2.5 { return false }
+    if math::abs(2.5) != 2.5 { return false }
+    if math::abs(0.0) != 0.0 { return false }
+    if math::sign(0.0 - 3.0) != 0.0 - 1.0 { return false }
+    if math::sign(3.0) != 1.0 { return false }
+    if math::sign(0.0) != 0.0 { return false }
+    return true
+}
+
+@[test]
+pub fn min_max_clamp: () :bool {
+    if math::min(1.5 2.5) != 1.5 { return false }
+    if math::min(2.5 1.5) != 1.5 { return false }
+    if math::max(1.5 2.5) != 2.5 { return false }
+    if math::max(2.5 1.5) != 2.5 { return false }
+    if math::clamp(5.0 0.0 1.0) != 1.0 { return false }
+    if math::clamp(0.0 - 5.0 0.0 1.0) != 0.0 { return false }
+    if math::clamp(0.5 0.0 1.0) != 0.5 { return false }
+    return true
+}
+
+@[test]
+pub fn trunc_toward_zero: () :bool {
+    if math::trunc(3.75) != 3.0 { return false }
+    if math::trunc(0.0 - 3.75) != 0.0 - 3.0 { return false }
+    if math::trunc(4.0) != 4.0 { return false }
+    if math::trunc(0.75) != 0.0 { return false }
+    if math::trunc(0.0 - 0.75) != 0.0 { return false }
+    return true
+}
+
+@[test]
+pub fn floor_and_ceil_directions: () :bool {
+    if math::floor(3.75) != 3.0 { return false }
+    if math::floor(0.0 - 3.75) != 0.0 - 4.0 { return false }
+    if math::floor(4.0) != 4.0 { return false }
+    if math::ceil(3.25) != 4.0 { return false }
+    if math::ceil(0.0 - 3.75) != 0.0 - 3.0 { return false }
+    if math::ceil(4.0) != 4.0 { return false }
+    return true
+}
+
+@[test]
+pub fn round_breaks_ties_away_from_zero: () :bool {
+    if math::round(2.5) != 3.0 { return false }
+    if math::round(0.0 - 2.5) != 0.0 - 3.0 { return false }
+    if math::round(3.4) != 3.0 { return false }
+    if math::round(3.75) != 4.0 { return false }
+    if math::round(0.0 - 3.75) != 0.0 - 4.0 { return false }
+    if math::round(4.0) != 4.0 { return false }
+    return true
+}
+
+@[test]
+pub fn rounding_leaves_non_finite_alone: () :bool {
+    set inf = 1.0 / 0.0
+    if math::trunc(inf) != inf { return false }
+    if math::floor(inf) != inf { return false }
+    if math::ceil(inf) != inf { return false }
+    if math::round(inf) != inf { return false }
+    if math::trunc(0.0 - inf) != 0.0 - inf { return false }
+    // NaN never compares equal to itself, so a still-NaN result fails == and
+    // proves the value was handed back rather than folded into a number.
+    set nan = inf - inf
+    set t = math::trunc(nan)
+    if t == t { return false }
+    return true
+}
+
+@[test]
+pub fn magnitudes_at_or_above_two_to_52: () :bool {
+    // Every f64 at or past 2^52 is already an integer, so the decomposition
+    // must hand it back untouched instead of grinding through 52 iterations.
+    if math::trunc(4503599627370496.0) != 4503599627370496.0 { return false }
+    if math::floor(4503599627370496.0) != 4503599627370496.0 { return false }
+    if math::ceil(4503599627370496.0) != 4503599627370496.0 { return false }
+    if math::round(4503599627370496.0) != 4503599627370496.0 { return false }
+    return true
+}
+
+@[test]
+pub fn list_sum_and_avg: () :bool {
+    set v = [] :vec[i64] mut
+    set v = vec::push::i64(v 10)
+    set v = vec::push::i64(v 20)
+    set v = vec::push::i64(v 33)
+    if math::sum(v) != 63.0 { return false }
+    if math::avg(v) != 21.0 { return false }
+    return true
+}
+
+@[test]
+pub fn list_min_max_product: () :bool {
+    set v = [] :vec[i64] mut
+    set v = vec::push::i64(v 4)
+    set v = vec::push::i64(v 9)
+    set v = vec::push::i64(v 2)
+    if math::minlist(v) != 2 { return false }
+    if math::maxlist(v) != 9 { return false }
+    if math::product(v) != 72.0 { return false }
+    return true
+}
+
+@[test]
+pub fn list_with_negatives: () :bool {
+    set v = [] :vec[i64] mut
+    set v = vec::push::i64(v 0 - 5)
+    set v = vec::push::i64(v 3)
+    set v = vec::push::i64(v 0 - 8)
+    if math::minlist(v) != 0 - 8 { return false }
+    if math::maxlist(v) != 3 { return false }
+    if math::sum(v) != 0.0 - 10.0 { return false }
+    return true
+}
+
+@[test]
+pub fn empty_list_has_no_surprises: () :bool {
+    set v = [] :vec[i64] mut
+    if math::sum(v) != 0.0 { return false }
+    if math::avg(v) != 0.0 { return false }
+    if math::product(v) != 1.0 { return false }
+    if math::minlist(v) != 0 { return false }
+    if math::maxlist(v) != 0 { return false }
+    return true
+}

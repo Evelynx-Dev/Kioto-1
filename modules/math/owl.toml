@@ -1,0 +1,35 @@
+[project]
+name = "math"
+entry = "mod.mr"
+
+[exports]
+# Quick tier: scalar f64 helpers plus the i64 list reductions.
+abs     = "mod.mr"
+sign    = "mod.mr"
+min     = "mod.mr"
+max     = "mod.mr"
+clamp   = "mod.mr"
+floor   = "mod.mr"
+ceil    = "mod.mr"
+round   = "mod.mr"
+trunc   = "mod.mr"
+sum     = "mod.mr"
+avg     = "mod.mr"
+product = "mod.mr"
+minlist = "mod.mr"
+maxlist = "mod.mr"
+
+# Submodules, filled in one at a time.
+consts     = "consts/mod.mr"
+seq        = "seq/mod.mr"
+int        = "int/mod.mr"
+float      = "float/mod.mr"
+sum        = "sum/mod.mr"
+stats      = "stats/mod.mr"
+complex    = "complex/mod.mr"
+decimal    = "decimal/mod.mr"
+random     = "random/mod.mr"
+power      = "power/mod.mr"
+trig       = "trig/mod.mr"
+hyperbolic = "hyperbolic/mod.mr"
+special    = "special/mod.mr"

@@ -1,0 +1,10 @@
+// Entry point for the Kioto test suite.
+//
+// The library is loaded as a dependency, so this file is the one place that
+// proves the public surface is reachable from outside the package.
+
+load kioto
+
+pub fn main: () {
+    use dasu("Kioto tests ok")
+}
