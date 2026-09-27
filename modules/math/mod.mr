@@ -18,9 +18,18 @@
 // maps 3.75 to 2.0 instead of 3.0. Decomposition costs 52 iterations, which is
 // the right trade for a tier whose job is to be correct and dependency-free.
 
+// The submodules that hold their own implementations. Each is listed here so
+// that a plain `load kioto` reaches them as math::<name>::, the same way the
+// root helpers above are reached as math::<name>. A submodule is a sibling of
+// this entry, not a wrapper around it: the entry keeps its own flat helpers
+// and does not re-export a submodule's symbols under a second name, so a
+// consumer never has to choose between math::abs and math::int::abs.
 load mire::vec
 load kioto::math::consts
 load kioto::math::seq
+load kioto::math::int
+load kioto::math::float
+load kioto::math::random
 
 // 2^52, the first magnitude at which every f64 is already an integer.
 cons LIMIT = 4503599627370496.0 :f64

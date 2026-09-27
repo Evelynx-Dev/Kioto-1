@@ -1,2 +1,327 @@
-# Kioto 3.0.0 — math::int (not implemented yet).
-# See modules/math/mod.mr for the build order and todo.md for the symbol inventory.
+// Kioto 3.0.0 - math::int.
+//
+// Integer arithmetic and number-theory helpers. Every function is pure Mire
+// with no rt_* extern and no rt_math_* call, so this module links in a
+// runtime = "none" build.
+//
+// Public symbols (18):
+//   abs sign min max clamp minlist maxlist sum
+//   gcd lcm factorial comb perm isqrt ipow divmod
+//   isPrime primeFactors
+//
+// Overflow is unchecked, as everywhere else in Mire: i64 arithmetic wraps.
+// The functions below are written so that their *intermediate* products stay in
+// range, so they stay exact for every input they document, and any caller that
+// feeds them a result destined to overflow has to detect that itself.
+
+load mire::vec
+
+// Magnitude of a value. abs, floor, ceil, round, sqrt and pow are compiler
+// builtins, so a bare call to any of those names inside a module is rewritten
+// to a PAL extern instead of reaching this module's own definition. The
+// internal work therefore goes through magnitude_i64, and the public abs below
+// is only ever reached namespaced as math::int::abs.
+//
+// The name carries the element type because a loaded module is flattened into
+// one flat namespace: two submodules that both called a helper `magnitude`
+// would collide, and the type checker resolves a bare call by name rather than
+// by module, so the second one silently picked up the first one's signature.
+fn magnitude_i64: (n :i64) :i64 {
+    if n < 0 {
+        return 0 - n
+    }
+    return n
+}
+
+// Absolute value. i64::MIN has no positive counterpart and so returns itself.
+pub fn abs: (n :i64) :i64 {
+    return magnitude_i64(n)
+}
+
+// -1, 0 or 1.
+pub fn sign: (n :i64) :i64 {
+    if n > 0 {
+        return 1
+    }
+    if n < 0 {
+        return -1
+    }
+    return 0
+}
+
+pub fn min: (a :i64, b :i64) :i64 {
+    if a < b {
+        return a
+    }
+    return b
+}
+
+pub fn max: (a :i64, b :i64) :i64 {
+    if a > b {
+        return a
+    }
+    return b
+}
+
+// Constrain x to [lo, hi], which is min(max(x, lo), hi). The reversed case is
+// settled first because an empty range has no x inside it: the standard
+// expression folds to hi, and the step-at-a-time version below would otherwise
+// reach the lo test first and hand back lo instead.
+pub fn clamp: (x :i64, lo :i64, hi :i64) :i64 {
+    if lo > hi {
+        return hi
+    }
+    if x < lo {
+        return lo
+    }
+    if x > hi {
+        return hi
+    }
+    return x
+}
+
+// Smallest element, or 0 for an empty list.
+pub fn minlist: (list :&vec[i64]) :i64 {
+    if vec::len(list) == 0 {
+        return 0
+    }
+    set best = vec::get::i64(list, 0) :i64 mut
+    set i = 1 :i64 mut
+    while i < vec::len(list) {
+        set v = vec::get::i64(list, i)
+        if v < best {
+            set best = v
+        }
+        set i = i + 1
+    }
+    return best
+}
+
+// Largest element, or 0 for an empty list.
+pub fn maxlist: (list :&vec[i64]) :i64 {
+    if vec::len(list) == 0 {
+        return 0
+    }
+    set best = vec::get::i64(list, 0) :i64 mut
+    set i = 1 :i64 mut
+    while i < vec::len(list) {
+        set v = vec::get::i64(list, i)
+        if v > best {
+            set best = v
+        }
+        set i = i + 1
+    }
+    return best
+}
+
+// Sum of the elements. An empty list sums to 0.
+pub fn sum: (list :&vec[i64]) :i64 {
+    set acc = 0 :i64 mut
+    set i = 0 :i64 mut
+    while i < vec::len(list) {
+        set acc = acc + vec::get::i64(list, i)
+        set i = i + 1
+    }
+    return acc
+}
+
+// Greatest common divisor by Euclid's algorithm. Always non-negative, because
+// both operands are reduced to their magnitudes first.
+pub fn gcd: (a :i64, b :i64) :i64 {
+    set x = magnitude_i64(a) :i64 mut
+    set y = magnitude_i64(b) :i64 mut
+    while y != 0 {
+        set t = x % y
+        set x = y
+        set y = t
+    }
+    return x
+}
+
+// Least common multiple. 0 when either operand is 0, which keeps the identity
+// lcm(0, n) = 0 rather than reporting a number built on a division by zero.
+pub fn lcm: (a :i64, b :i64) :i64 {
+    if a == 0 || b == 0 {
+        return 0
+    }
+    return (a / gcd(a, b)) * b
+}
+
+// Factorial, n!. Returns 1 for n <= 1. Wraps past 20!.
+pub fn factorial: (n :i64) :i64 {
+    if n <= 1 {
+        return 1
+    }
+    set acc = 1 :i64 mut
+    set i = 2 :i64 mut
+    while i <= n {
+        set acc = acc * i
+        set i = i + 1
+    }
+    return acc
+}
+
+// Binomial coefficient C(n, k), built from the smaller half so it takes k
+// steps rather than n. 0 for k < 0 or k > n.
+pub fn comb: (n :i64, k :i64) :i64 {
+    if k < 0 || k > n {
+        return 0
+    }
+    set i = min(k, n - k) :i64 mut
+    set acc = 1 :i64 mut
+    set j = 1 :i64 mut
+    while j <= i {
+        // acc * (n - i + j) is exact for every n whose result fits in i64.
+        set acc = (acc * (n - i + j)) / j
+        set j = j + 1
+    }
+    return acc
+}
+
+// Permutations P(n, k) = n! / (n-k)!. 0 for k < 0 or k > n.
+pub fn perm: (n :i64, k :i64) :i64 {
+    if k < 0 || k > n {
+        return 0
+    }
+    set acc = 1 :i64 mut
+    set i = 0 :i64 mut
+    while i < k {
+        set acc = acc * (n - i)
+        set i = i + 1
+    }
+    return acc
+}
+
+// Integer square root, floor(sqrt(n)). -1 marks a negative input, which has no
+// real square root to floor.
+//
+// Two overflow traps have to be stepped around. The midpoint is lo + (hi - lo)
+// / 2 rather than (lo + hi) / 2, so it cannot leave the range. And the square
+// is tested as mid <= n / mid rather than mid * mid <= n, so the comparison
+// stays exact for every i64 instead of overflowing on the first probe of a
+// large n. mid is never 0, so that division is always defined.
+pub fn isqrt: (n :i64) :i64 {
+    if n < 0 {
+        return -1
+    }
+    if n < 2 {
+        return n
+    }
+    set lo = 1 :i64 mut
+    set hi = n :i64 mut
+    while lo <= hi {
+        set mid = lo + (hi - lo) / 2
+        if mid <= n / mid {
+            set lo = mid + 1
+        } else {
+            set hi = mid - 1
+        }
+    }
+    return hi
+}
+
+// Integer exponentiation by squaring. A negative exponent has no integer
+// result and reports 0. base * base overflows once the base grows past 2^31,
+// so the caller owns the range check: any (base, exp) whose true value exceeds
+// i64 wraps.
+pub fn ipow: (base :i64, exp :i64) :i64 {
+    if exp < 0 {
+        return 0
+    }
+    set acc = 1 :i64 mut
+    set b = base :i64 mut
+    set e = exp :i64 mut
+    while e > 0 {
+        if e % 2 == 1 {
+            set acc = acc * b
+        }
+        set e = e / 2
+        if e > 0 {
+            set b = b * b
+        }
+    }
+    return acc
+}
+
+// Quotient and remainder as the two-element vector [q, r], so the pair survives
+// the return without a tuple type. Division by zero reports [0, 0] rather than
+// trapping, matching lcm's choice to define the degenerate case.
+pub fn divmod: (a :i64, b :i64) :vec[i64] {
+    set q = 0 :i64 mut
+    set r = 0 :i64 mut
+    if b != 0 {
+        set q = a / b
+        set r = a % b
+    }
+    set out = vec::push::i64([] :vec[i64], q) :vec[i64] mut
+    set out = vec::push::i64(out, r)
+    return out
+}
+
+// Primality by trial division over 6k-1, which is exact for every i64 and needs
+// no 128-bit intermediate.
+//
+// The walk stops on f <= n / f rather than f * f <= n. The two agree for every
+// f, but the product leaves the range as soon as f passes 3037000499, which the
+// walk does on its way to the end of a large n. Dividing keeps the comparison
+// exact for all of i64. f is never 0, so the division is always defined.
+//
+// Miller-Rabin would be faster but cannot be made correct here without a
+// double-width product, and the base sets that are deterministic over all of
+// i64 need exactly that. Correctness wins over speed in this tier.
+pub fn isPrime: (n :i64) :bool {
+    if n < 2 {
+        return false
+    }
+    if n < 4 {
+        return true
+    }
+    if n % 2 == 0 {
+        return false
+    }
+    if n % 3 == 0 {
+        return n == 3
+    }
+    set f = 5 :i64 mut
+    while f <= n / f {
+        if n % f == 0 {
+            return false
+        }
+        if n % (f + 2) == 0 {
+            return false
+        }
+        set f = f + 6
+    }
+    return true
+}
+
+// Prime factors in ascending order, with multiplicity. An empty vector for
+// n <= 1, which has no prime decomposition. Uses the same 6k-1 walk as
+// isPrime so the two agree on every input, and the same division-based bound
+// check so neither of them overflows on a large input.
+pub fn primeFactors: (n :i64) :vec[i64] {
+    // The decomposition is a property of the magnitude, so the guard has to be
+    // on |n| and not on n: testing `n <= 1` sent every negative straight back
+    // empty, hiding the factors of -12 behind the same answer as 0 and 1.
+    set rest = magnitude_i64(n) :i64 mut
+    if rest <= 1 {
+        return [] :vec[i64]
+    }
+    set out = [] :vec[i64] mut
+    set f = 2 :i64 mut
+    while f <= rest / f {
+        while rest % f == 0 {
+            set out = vec::push::i64(out, f)
+            set rest = rest / f
+        }
+        if f == 2 {
+            set f = 3
+        } else {
+            set f = f + 2
+        }
+    }
+    if rest > 1 {
+        set out = vec::push::i64(out, rest)
+    }
+    return out
+}

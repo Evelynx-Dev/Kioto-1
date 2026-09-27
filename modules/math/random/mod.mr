@@ -1,2 +1,155 @@
-# Kioto 3.0.0 — math::random (not implemented yet).
-# See modules/math/mod.mr for the build order and todo.md for the symbol inventory.
+// Kioto 3.0.0 - math::random.
+//
+// Deterministic pseudo-random numbers in pure Mire, with no extern.
+//
+// This is NOT a cryptographic generator. For anything that has to be
+// unpredictable to an adversary, use crypto::random::secure, which draws from
+// the OS entropy pool via pal_random_fill. What lives here is a fast,
+// reproducible, seeded generator for sampling, shuffling, jitter and tests.
+//
+// Algorithm: Marsaglia's xorshift128, four 31-bit words of state and a period
+// of 2^128 - 1. It was chosen over a plain LCG because every operation is a
+// shift or an XOR, so nothing here depends on how i64 overflow behaves, and
+// because a single 64-bit LCG state gives up its high bits after a few draws
+// when used as a float.
+//
+// Public symbols (5):
+//   seed next nextInt nextFloat pick
+//
+// Every word of state is kept in [0, 2^31) so the shifts stay exact and the
+// arithmetic never leaves i64 range. nextInt is unbiased: it rejects and
+// redraws rather than taking a plain remainder, which is what removes the
+// modulo bias a naive `% bound` leaves behind.
+//
+// Each test in the suite seeds its own state rather than relying on the order
+// the runner happens to visit the functions in, so a failure always reproduces
+// on its own.
+
+load mire::vec
+
+// Modulus of the state words, 2^31.
+cons WORD = 2147483648 :i64
+
+// Mask keeping a value inside [0, 2^31).
+cons MASK = 2147483647 :i64
+
+// The four words of xorshift128 state. Zero is the one state this generator
+// cannot escape, so seed() refuses it and the default is a non-zero constant.
+set st0 = 123456789 :i64 mut
+set st1 = 362436069 :i64 mut
+set st2 = 521288629 :i64 mut
+set st3 = 88675123 :i64 mut
+
+// Restart the generator from s. The same seed always replays the same
+// sequence, which is the property tests and simulations depend on.
+//
+// A zero seed is remapped to 1: xorshift128 is a linear generator over GF(2)
+// and the all-zero state is its single fixed point, so seeding with 0 would
+// emit nothing but zeroes for the rest of the process.
+pub fn seed: (s :i64) {
+    set v = s % WORD :i64 mut
+    if v < 0 {
+        set v = 0 - v
+    }
+    if v == 0 {
+        set v = 1
+    }
+    // splitmix-style scramble, so that two seeds differing by one still land
+    // far apart in the state instead of producing correlated first draws.
+    set st0 = mix(v)
+    set st1 = mix(st0 + 2654435769)
+    set st2 = mix(st1 + 2654435769)
+    set st3 = mix(st2 + 2654435769)
+}
+
+// One step of the scramble used by seed: a Weyl multiply-xor-shift that keeps
+// the value inside [0, 2^31). The multiply peaks at 2^31 * 2^25 = 2^56, well
+// inside i64.
+fn mix: (v :i64) :i64 {
+    set x = v & MASK :i64 mut
+    set x = ((x * 1103515245) + 12345) & MASK
+    set x = x ^ (x >> 13)
+    return x & MASK
+}
+
+// Next 31-bit word, in [0, 2^31).
+pub fn next: () :i64 {
+    set t = (st0 ^ ((st0 << 11) & MASK)) & MASK
+    set st0 = st1
+    set st1 = st2
+    set st2 = st3
+    set w = ((st3 ^ (st3 >> 19)) ^ (t ^ (t >> 8))) :i64 mut
+    set w = w & MASK
+    set st3 = w
+    return w
+}
+
+// A value in [0, 2^62), assembled from two words so that a bound too wide for
+// one word still has a domain wide enough to reject into. hi is below 2^31, so
+// the product and the sum both stay inside i64.
+fn wide: () :i64 {
+    set hi = next() :i64 mut
+    set lo = next()
+    return (hi * WORD) + lo
+}
+
+// Uniform value in [0, bound). 0 when bound <= 0, so the degenerate bound does
+// not trap in a loop that cannot terminate.
+//
+// Unbiased: neither 2^31 nor 2^62 is a multiple of an arbitrary bound, so
+// taking a plain remainder would over-represent the low end. Instead the
+// largest multiple of bound that fits in the domain is computed and any draw at
+// or above it is thrown away and redrawn, which leaves every residue equally
+// likely.
+//
+// One word covers a bound up to 2^31. Above that the domain is widened to 2^62
+// from two words, so a bound in (2^31, 2^62] is served exactly. A bound past
+// 2^62 has no representable domain to reject within and reports 0.
+pub fn nextInt: (bound :i64) :i64 {
+    if bound <= 0 {
+        return 0
+    }
+    if bound <= WORD {
+        set limit = (WORD / bound) * bound :i64 mut
+        if limit <= 0 {
+            return 0
+        }
+        set w = next() :i64 mut
+        while w >= limit {
+            set w = next()
+        }
+        return w % bound
+    }
+    if bound > 4611686018427387904 {
+        return 0
+    }
+    set limit = (4611686018427387904 / bound) * bound :i64 mut
+    if limit <= 0 {
+        return 0
+    }
+    set w = wide() :i64 mut
+    while w >= limit {
+        set w = wide()
+    }
+    return w % bound
+}
+
+// Uniform value in [0, 1), built from two words so the low 31 bits of the
+// result are filled in rather than left as zeros. That keeps the mantissa full
+// width instead of handing back a float that only has 31 bits of entropy.
+pub fn nextFloat: () :f64 {
+    set hi = next() :f64 mut
+    set lo = next() :f64 mut
+    return (hi * (1.0 / 2147483648.0)) + (lo * (1.0 / 4611686018427387904.0))
+}
+
+// Uniform choice of one element of v, by value. An empty list has no element
+// to pick and reports 0, which is the same degenerate answer nextInt gives for
+// a bound of 0.
+pub fn pick: (v :&vec[i64]) :i64 {
+    set n = vec::len(v)
+    if n == 0 {
+        return 0
+    }
+    return vec::get::i64(v, nextInt(n))
+}

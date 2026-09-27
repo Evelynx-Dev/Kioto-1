@@ -1,0 +1,300 @@
+// math::float — predicates and the rounding family, one test per public symbol.
+//
+// NaN and the infinities get their own tests rather than being sprinkled
+// through the others, because the way this module handles them is a deliberate
+// design decision: the rounding family hands them back untouched, the way C's
+// trunc/floor/ceil/round do. A test that only checks 3.75 would pass just as
+// happily against an implementation that folded NaN into 0.0, so every
+// non-finite behaviour is asserted on its own.
+//
+// The two builtin-shadowing names are worth a dedicated test as well: abs and
+// round are compiler builtins when called bare, so these call sites have to
+// keep reaching the module's own definitions through the math::float prefix.
+
+load kioto
+
+@[test]
+pub fn abs_and_sign: () :bool {
+    if math::float::abs(0.0 - 2.5) != 2.5 { return false }
+    if math::float::abs(2.5) != 2.5 { return false }
+    if math::float::abs(0.0) != 0.0 { return false }
+    if math::float::sign(0.0 - 3.0) != 0.0 - 1.0 { return false }
+    if math::float::sign(3.0) != 1.0 { return false }
+    if math::float::sign(0.0) != 0.0 { return false }
+    return true
+}
+
+@[test]
+pub fn min_and_max: () :bool {
+    if math::float::min(1.5 2.5) != 1.5 { return false }
+    if math::float::min(2.5 1.5) != 1.5 { return false }
+    if math::float::max(1.5 2.5) != 2.5 { return false }
+    if math::float::max(2.5 1.5) != 2.5 { return false }
+    if math::float::min(0.0 - 5.0 5.0) != 0.0 - 5.0 { return false }
+    if math::float::max(0.0 - 5.0 5.0) != 5.0 { return false }
+    return true
+}
+
+@[test]
+pub fn min_and_max_propagate_nan: () :bool {
+    set nan = 0.0 / 0.0
+    // IEEE minNum/maxNum are quiet about NaN and pick a side; this module
+    // propagates instead, so a caller cannot mistake a poisoned input for a
+    // real comparison result.
+    if !math::float::isNan(math::float::min(nan 1.0)) { return false }
+    if !math::float::isNan(math::float::min(1.0 nan)) { return false }
+    if !math::float::isNan(math::float::max(nan 1.0)) { return false }
+    if !math::float::isNan(math::float::max(1.0 nan)) { return false }
+    return true
+}
+
+@[test]
+pub fn copysign_takes_magnitude_from_a_and_sign_from_b: () :bool {
+    if math::float::copysign(3.0 0.0 - 1.0) != 0.0 - 3.0 { return false }
+    if math::float::copysign(0.0 - 3.0 1.0) != 3.0 { return false }
+    if math::float::copysign(3.0 1.0) != 3.0 { return false }
+    // Negative zero has no magnitude to speak of but still carries a sign, and
+    // b == 0.0 is false against b < 0.0, so this arm needs its own test.
+    // 0.0 - 0.0 is +0.0 under round-to-nearest, so the negative zero has to be
+    // built by multiplying zero by a negative number.
+    if math::float::copysign(1.0 0.0 * (0.0 - 1.0)) != 0.0 - 1.0 { return false }
+    if math::float::copysign(1.0 0.0) != 1.0 { return false }
+    return true
+}
+
+@[test]
+pub fn trunc_toward_zero: () :bool {
+    if math::float::trunc(3.75) != 3.0 { return false }
+    if math::float::trunc(0.0 - 3.75) != 0.0 - 3.0 { return false }
+    if math::float::trunc(4.0) != 4.0 { return false }
+    if math::float::trunc(0.75) != 0.0 { return false }
+    if math::float::trunc(0.0 - 0.75) != 0.0 { return false }
+    // Everything in (-1, 1) truncates to zero, and a sign-blind fast path
+    // would hand the negative fraction back unchanged.
+    if math::float::trunc(0.0 - 0.5) != 0.0 { return false }
+    if math::float::trunc(0.0 - 1.5) != 0.0 - 1.0 { return false }
+    return true
+}
+
+@[test]
+pub fn fract_keeps_the_sign_of_the_input: () :bool {
+    if math::float::fract(3.75) != 0.75 { return false }
+    if math::float::fract(3.0) != 0.0 { return false }
+    if math::float::fract(0.25) != 0.25 { return false }
+    // fract is defined as x - trunc(x), so it is negative below zero rather
+    // than being folded to a magnitude.
+    if math::float::fract(0.0 - 3.75) != 0.0 - 0.75 { return false }
+    if math::float::fract(0.0 - 0.25) != 0.0 - 0.25 { return false }
+    return true
+}
+
+@[test]
+pub fn floor_and_ceil_directions: () :bool {
+    if math::float::floor(3.75) != 3.0 { return false }
+    if math::float::floor(0.0 - 3.75) != 0.0 - 4.0 { return false }
+    if math::float::floor(4.0) != 4.0 { return false }
+    if math::float::ceil(3.25) != 4.0 { return false }
+    if math::float::ceil(0.0 - 3.75) != 0.0 - 3.0 { return false }
+    if math::float::ceil(4.0) != 4.0 { return false }
+    // At the unit boundary floor rounds away from zero and ceil rounds toward.
+    if math::float::floor(0.0 - 0.5) != 0.0 - 1.0 { return false }
+    if math::float::ceil(0.0 - 0.5) != 0.0 { return false }
+    if math::float::floor(0.0 - 0.75) != 0.0 - 1.0 { return false }
+    if math::float::ceil(0.0 - 0.75) != 0.0 { return false }
+    return true
+}
+
+@[test]
+pub fn round_breaks_ties_away_from_zero: () :bool {
+    if math::float::round(2.5) != 3.0 { return false }
+    if math::float::round(0.0 - 2.5) != 0.0 - 3.0 { return false }
+    if math::float::round(3.4) != 3.0 { return false }
+    if math::float::round(3.75) != 4.0 { return false }
+    if math::float::round(0.0 - 3.75) != 0.0 - 4.0 { return false }
+    if math::float::round(4.0) != 4.0 { return false }
+    if math::float::round(0.0 - 0.5) != 0.0 - 1.0 { return false }
+    if math::float::round(0.0 - 0.75) != 0.0 - 1.0 { return false }
+    if math::float::round(0.0 - 1.5) != 0.0 - 2.0 { return false }
+    // This is explicitly not banker's rounding: round(0.5) is 1, not 0.
+    if math::float::round(0.5) != 1.0 { return false }
+    if math::float::round(1.5) != 2.0 { return false }
+    return true
+}
+
+@[test]
+pub fn rounding_leaves_nan_and_infinity_alone: () :bool {
+    set inf = 1.0 / 0.0
+    if math::float::trunc(inf) != inf { return false }
+    if math::float::floor(inf) != inf { return false }
+    if math::float::ceil(inf) != inf { return false }
+    if math::float::round(inf) != inf { return false }
+    if math::float::trunc(0.0 - inf) != 0.0 - inf { return false }
+    if math::float::fract(inf) != inf { return false }
+    // NaN never compares equal to itself, so a result that still reports itself
+    // as NaN proves the value was handed back rather than folded into a number.
+    set nan = inf - inf
+    if math::float::trunc(nan) == nan { return false }
+    if math::float::floor(nan) == nan { return false }
+    if math::float::ceil(nan) == nan { return false }
+    if math::float::round(nan) == nan { return false }
+    if math::float::fract(nan) == nan { return false }
+    return true
+}
+
+// A large finite f64, built by repeated doubling. Mire's lexer has no
+// scientific-notation float literal, so 1.0e308 cannot be written directly and
+// the largest magnitudes have to be reached arithmetically. 2^1023 is the
+// largest power of two that is still finite, so it stands in for the whole
+// "too big to decompose" region without risking an infinity.
+fn large_finite: () :f64 {
+    set x = 1.0 :f64 mut
+    set i = 0 :i64 mut
+    while i < 1023 {
+        set x = x * 2.0
+        set i = i + 1
+    }
+    return x
+}
+
+@[test]
+pub fn rounding_passes_through_magnitudes_at_or_above_2_52: () :bool {
+    // Every f64 at or past 2^52 is already an integer, so the decomposition
+    // must hand it back rather than grinding through 52 iterations.
+    if math::float::trunc(4503599627370496.0) != 4503599627370496.0 { return false }
+    if math::float::floor(4503599627370496.0) != 4503599627370496.0 { return false }
+    if math::float::ceil(4503599627370496.0) != 4503599627370496.0 { return false }
+    if math::float::round(4503599627370496.0) != 4503599627370496.0 { return false }
+    if math::float::fract(4503599627370496.0) != 0.0 { return false }
+    // The same holds for anything too large to decompose at all.
+    set huge = large_finite()
+    if !math::float::isFinite(huge) { return false }
+    if math::float::trunc(huge) != huge { return false }
+    if math::float::floor(huge) != huge { return false }
+    if math::float::ceil(huge) != huge { return false }
+    if math::float::round(huge) != huge { return false }
+    // Past 2^52 every f64 is an integer, so its fractional part is zero.
+    if math::float::fract(huge) != 0.0 { return false }
+    if math::float::trunc(0.0 - huge) != 0.0 - huge { return false }
+    return true
+}
+
+@[test]
+pub fn isNan: () :bool {
+    set nan = 0.0 / 0.0
+    if !math::float::isNan(nan) { return false }
+    if math::float::isNan(0.0) { return false }
+    if math::float::isNan(1.0) { return false }
+    if math::float::isNan(1.0 / 0.0) { return false }
+    if math::float::isNan(0.0 - 1.0 / 0.0) { return false }
+    return true
+}
+
+@[test]
+pub fn isInf: () :bool {
+    if !math::float::isInf(1.0 / 0.0) { return false }
+    if !math::float::isInf(0.0 - 1.0 / 0.0) { return false }
+    if math::float::isInf(0.0) { return false }
+    if math::float::isInf(1.0) { return false }
+    // NaN is not an infinity, and this is the case a chain of == tests gets
+    // wrong because every comparison with NaN is false.
+    if math::float::isInf(0.0 / 0.0) { return false }
+    return true
+}
+
+@[test]
+pub fn isFinite: () :bool {
+    if !math::float::isFinite(0.0) { return false }
+    if !math::float::isFinite(1.0) { return false }
+    if !math::float::isFinite(0.0 - 2.5) { return false }
+    if math::float::isFinite(1.0 / 0.0) { return false }
+    if math::float::isFinite(0.0 - 1.0 / 0.0) { return false }
+    if math::float::isFinite(0.0 / 0.0) { return false }
+    return true
+}
+
+@[test]
+pub fn isNormal_and_isSubnormal_split_on_the_smallest_normal: () :bool {
+    // 1.0 and 2^-1 are plainly normal, and 0.0 is neither: it is not subnormal
+    // because subnormal still has to be non-zero.
+    if !math::float::isNormal(1.0) { return false }
+    if !math::float::isNormal(0.5) { return false }
+    if !math::float::isNormal(0.0 - 3.0) { return false }
+    if math::float::isNormal(0.0) { return false }
+    if math::float::isNormal(1.0 / 0.0) { return false }
+    if math::float::isNormal(0.0 / 0.0) { return false }
+    if math::float::isSubnormal(0.0) { return false }
+    if math::float::isSubnormal(1.0) { return false }
+    if math::float::isSubnormal(1.0 / 0.0) { return false }
+    if math::float::isSubnormal(0.0 / 0.0) { return false }
+    return true
+}
+
+@[test]
+pub fn toBits_and_fromBits_round_trip_exactly: () :bool {
+    // The bit pattern of 1.0 is 0x3FF0000000000000, and of -1.0 it is that
+    // pattern with the sign bit set, 0xBFF0000000000000, which reads back as
+    // the negative i64 below.
+    if math::float::toBits(1.0) != 4607182418800017408 { return false }
+    if math::float::toBits(0.0) != 0 { return false }
+    if math::float::toBits(0.0 - 1.0) != 0 - 4616189618054758400 { return false }
+    if math::float::fromBits(4607182418800017408) != 1.0 { return false }
+    if math::float::fromBits(0) != 0.0 { return false }
+    return true
+}
+
+@[test]
+pub fn toBits_preserves_the_signs_that_arithmetic_would_lose: () :bool {
+    // This is the reason toBits exists: -0.0 and 0.0 compare equal, so no
+    // amount of arithmetic can tell them apart, but their bit patterns differ.
+    // 0.0 - 0.0 is +0.0, so the negative zero is spelled as a product.
+    if math::float::toBits(0.0 * (0.0 - 1.0)) == math::float::toBits(0.0) { return false }
+    if math::float::fromBits(math::float::toBits(0.0 * (0.0 - 1.0))) != 0.0 * (0.0 - 1.0) { return false }
+    // An infinity survives the round trip as an infinity, not as a NaN.
+    if !math::float::isInf(math::float::fromBits(math::float::toBits(1.0 / 0.0))) { return false }
+    return true
+}
+
+@[test]
+pub fn ulp_is_a_power_of_two_and_grows_with_the_magnitude: () :bool {
+    // ULP at 1.0 is 2^-52, the machine epsilon.
+    if math::float::ulp(1.0) != 0.0000000000000002220446049250313 { return false }
+    // Every normal magnitude has a ULP that is an exact power of two, and it
+    // doubles as the binade doubles. 2.0's gap is twice 1.0's.
+    if math::float::ulp(2.0) != math::float::ulp(1.0) * 2.0 { return false }
+    if math::float::ulp(4.0) != math::float::ulp(1.0) * 4.0 { return false }
+    if math::float::ulp(0.5) != math::float::ulp(1.0) * 0.5 { return false }
+    // The gap is a property of the magnitude, not of the sign.
+    if math::float::ulp(0.0 - 8.0) != math::float::ulp(8.0) { return false }
+    return true
+}
+
+@[test]
+pub fn ulp_handles_zero_subnormal_nan_and_infinity: () :bool {
+    set inf = 1.0 / 0.0
+    // At and below zero the spacing never grows, so it is the smallest
+    // subnormal.
+    if math::float::ulp(0.0) <= 0.0 { return false }
+    if math::float::ulp(0.0) != math::float::ulp(0.0 - 0.0) { return false }
+    if !math::float::isInf(math::float::ulp(inf)) { return false }
+    if !math::float::isNan(math::float::ulp(0.0 / 0.0)) { return false }
+    return true
+}
+
+@[test]
+pub fn epsilon_is_two_to_the_minus_52: () :bool {
+    if math::float::epsilon() != 0.0000000000000002220446049250313 { return false }
+    // 1.0 + epsilon must be strictly greater than 1.0, which is the whole
+    // reason the constant exists.
+    if 1.0 + math::float::epsilon() <= 1.0 { return false }
+    return true
+}
+
+@[test]
+pub fn integral_magnitude_gates_the_decomposition: () :bool {
+    if !math::float::integral_magnitude(3.75) { return false }
+    if !math::float::integral_magnitude(0.0) { return false }
+    if math::float::integral_magnitude(4503599627370496.0) { return false }
+    if math::float::integral_magnitude(1.0 / 0.0) { return false }
+    if math::float::integral_magnitude(0.0 / 0.0) { return false }
+    return true
+}

@@ -1,2 +1,332 @@
-# Kioto 3.0.0 — math::float (not implemented yet).
-# See modules/math/mod.mr for the build order and todo.md for the symbol inventory.
+// Kioto 3.0.0 - math::float.
+//
+// Binary64 predicates and the rounding family, in pure Mire with no rt_math_*
+// extern, so the module links in a runtime = "none" build.
+//
+// Public symbols (21):
+//   abs sign min max copysign
+//   trunc fract ceil floor round
+//   isNan isInf isFinite isNormal isSubnormal
+//   toBits fromBits ulp epsilon
+//
+// NaN and the infinities are handled by IEEE-754 comparison rules rather than
+// by any special value: x != x is the NaN test, and 1.0 / 0.0 is the infinity.
+// The rounding family hands NaN and +/-Inf back untouched, which is what C's
+// trunc/floor/ceil/round do and is why isFinite is worth having alongside them.
+//
+// The rounding is greedy decomposition over the powers of two rather than
+// masking mantissa bits. Masking only works while |x| < 1: at that point the
+// integer part still lives in the low mantissa bits, so clearing all 52 of them
+// maps 3.75 to 2.0 instead of 3.0. Decomposition costs 52 iterations, which is
+// the right trade for a tier whose job is to be correct and dependency-free.
+//
+// Two names in here are compiler builtins: abs, floor, ceil, round, sqrt and
+// pow are rewritten to PAL externs when called bare, so the internal callers go
+// through magnitude_f64 and the public ones are only reached as
+// math::float::abs. See the note on magnitude_f64.
+
+// 2^52, the first magnitude at which every f64 is already an integer.
+cons LIMIT = 4503599627370496.0 :f64
+
+// Largest power of two below LIMIT.
+cons TOP = 2251799813685248.0 :f64
+
+// NaN, spelled as the one expression that is guaranteed to produce it.
+fn nan: () :f64 { return 0.0 / 0.0 }
+
+// True when |x| is small enough for the power-of-two decomposition to be
+// exact, which is every finite f64 below 2^52. NaN and the infinities fail
+// here, and that is what makes the rounding family hand them back untouched.
+pub fn integral_magnitude: (x :f64) :bool {
+    if x != x {
+        return false
+    }
+    return magnitude_f64(x) < LIMIT
+}
+
+// Magnitude of a value. abs, floor, ceil, round, sqrt and pow are compiler
+// builtins, so a bare call to any of those names inside a module is rewritten
+// to a PAL extern instead of reaching this module's own definition. The
+// internal work therefore goes through magnitude_f64, and the public abs below
+// is only ever reached namespaced as math::float::abs.
+//
+// The name carries the element type because a loaded module is flattened into
+// one flat namespace: two submodules that both called a helper `magnitude`
+// would collide, and the type checker resolves a bare call by name rather than
+// by module, so the second one silently picked up the first one's signature.
+// That is not hypothetical, math::int has the same helper.
+fn magnitude_f64: (x :f64) :f64 {
+    if x < 0.0 {
+        return 0.0 - x
+    }
+    return x
+}
+
+// Absolute value. NaN compares false against 0 and so comes back unchanged.
+pub fn abs: (x :f64) :f64 {
+    return magnitude_f64(x)
+}
+
+// -1.0, 0.0 or 1.0. NaN has no sign, so it reports 0.0.
+pub fn sign: (x :f64) :f64 {
+    if x != x {
+        return 0.0
+    }
+    if x > 0.0 {
+        return 1.0
+    }
+    if x < 0.0 {
+        return 0.0 - 1.0
+    }
+    return 0.0
+}
+
+// Minimum of two values. NaN propagates, matching IEEE minNum's quiet-NaN rule
+// rather than silently picking a side.
+pub fn min: (a :f64, b :f64) :f64 {
+    if a != a {
+        return a
+    }
+    if b != b {
+        return b
+    }
+    if a < b {
+        return a
+    }
+    return b
+}
+
+// Maximum of two values. NaN propagates.
+pub fn max: (a :f64, b :f64) :f64 {
+    if a != a {
+        return a
+    }
+    if b != b {
+        return b
+    }
+    if a > b {
+        return a
+    }
+    return b
+}
+
+// |a| carrying the sign of b, so copysign(1.0, -0.0) is -1.0 and not 1.0.
+pub fn copysign: (a :f64, b :f64) :f64 {
+    set mag = magnitude_f64(a)
+    if b < 0.0 {
+        return 0.0 - mag
+    }
+    // -0.0 < 0.0 is false, so negative zero needs its own test. Dividing by it
+    // yields -Inf, which is the only arithmetic that can read a zero's sign.
+    if b == 0.0 {
+        if (1.0 / b) < 0.0 {
+            return 0.0 - mag
+        }
+    }
+    return mag
+}
+
+// Drop the fractional part, rounding toward zero.
+pub fn trunc: (x :f64) :f64 {
+    if !integral_magnitude(x) {
+        return x
+    }
+    set neg = x < 0.0
+    set a = if neg { 0.0 - x } else { x } :f64 mut
+    if a < 1.0 {
+        // |x| below 1 has no integer part, so the answer is zero for either
+        // sign. Returning x here would hand back -0.75 unchanged.
+        return 0.0
+    }
+    set t = 0.0 :f64 mut
+    set p = TOP :f64 mut
+    while p >= 1.0 {
+        if a >= p {
+            set a = a - p
+            set t = t + p
+        }
+        set p = p * 0.5
+    }
+    if neg {
+        return 0.0 - t
+    }
+    return t
+}
+
+// Fractional part, x - trunc(x). Keeps the sign of x, so fract(-2.5) is -0.5.
+pub fn fract: (x :f64) :f64 {
+    if !integral_magnitude(x) {
+        // Outside the decomposition range the rounding family hands x back
+        // unchanged, because x is already an integer. The fractional part of an
+        // integer is zero, not the integer, so fract has to answer 0.0 here
+        // rather than inherit that shortcut. NaN and the infinities keep their
+        // own values, matching the rest of the family.
+        if x != x {
+            return x
+        }
+        if isInf(x) {
+            return x
+        }
+        return 0.0
+    }
+    return x - trunc(x)
+}
+
+// Smallest integer not less than x.
+pub fn ceil: (x :f64) :f64 {
+    if !integral_magnitude(x) {
+        return x
+    }
+    set t = trunc(x)
+    if t == x {
+        return t
+    }
+    if x > 0.0 {
+        return t + 1.0
+    }
+    return t
+}
+
+// Largest integer not greater than x.
+pub fn floor: (x :f64) :f64 {
+    if !integral_magnitude(x) {
+        return x
+    }
+    set t = trunc(x)
+    if t == x {
+        return t
+    }
+    if x < 0.0 {
+        return t - 1.0
+    }
+    return t
+}
+
+// Nearest integer, halves away from zero: round(2.5) is 3, round(-2.5) is -3.
+// This is not banker's rounding, and the difference is deliberate and
+// observable at every .5.
+pub fn round: (x :f64) :f64 {
+    if !integral_magnitude(x) {
+        return x
+    }
+    set t = trunc(x)
+    if t == x {
+        return t
+    }
+    set d = x - t
+    if d >= 0.5 {
+        return t + 1.0
+    }
+    if d <= 0.0 - 0.5 {
+        return t - 1.0
+    }
+    return t
+}
+
+pub fn isNan: (x :f64) :bool {
+    return x != x
+}
+
+pub fn isInf: (x :f64) :bool {
+    return x == 1.0 / 0.0 || x == -1.0 / 0.0
+}
+
+pub fn isFinite: (x :f64) :bool {
+    return !isNan(x) && !isInf(x)
+}
+
+// A normal number is finite, non-zero, and not subnormal: its magnitude is at
+// least 2^-1022, so it carries a full 53 bits of precision.
+pub fn isNormal: (x :f64) :bool {
+    if !isFinite(x) {
+        return false
+    }
+    if x == 0.0 {
+        return false
+    }
+    return magnitude_f64(x) >= pow2(0 - 1022)
+}
+
+// Subnormal: finite, non-zero, and smaller than the smallest normal. The
+// leading bits of the significand are zero, so precision degrades towards zero.
+pub fn isSubnormal: (x :f64) :bool {
+    if !isFinite(x) {
+        return false
+    }
+    if x == 0.0 {
+        return false
+    }
+    return magnitude_f64(x) < pow2(0 - 1022)
+}
+
+// Gap between x and its neighbour, 2^(e - 52) where e is the exponent of x.
+// NaN reports NaN, the infinities report Inf, and 0.0 reports the smallest
+// subnormal, which is the true gap there.
+pub fn ulp: (x :f64) :f64 {
+    if x != x {
+        return nan()
+    }
+    if isInf(x) {
+        return 1.0 / 0.0
+    }
+    set a = magnitude_f64(x) :f64 mut
+    if a < pow2(0 - 1022) {
+        // Subnormal, and zero itself: the spacing never grows.
+        return pow2(0 - 1074)
+    }
+    // Walk a into [1, 2) and count how far it moved, which recovers the
+    // exponent without a logarithm.
+    set e = 0 :i64 mut
+    while a >= 2.0 {
+        set a = a * 0.5
+        set e = e + 1
+    }
+    while a < 1.0 {
+        set a = a * 2.0
+        set e = e - 1
+    }
+    return pow2(e - 52)
+}
+
+// 2^k by repeated doubling, for k from -1074 to 971.
+fn pow2: (k :i64) :f64 {
+    if k >= 0 {
+        set out = 1.0 :f64 mut
+        set i = 0 :i64 mut
+        while i < k {
+            set out = out * 2.0
+            set i = i + 1
+        }
+        return out
+    }
+    set out = 1.0 :f64 mut
+    set i = 0 :i64 mut
+    while i < 0 - k {
+        set out = out * 0.5
+        set i = i + 1
+    }
+    return out
+}
+
+// Raw IEEE-754 bit pattern of x, as the i64 that holds it. The inverse of
+// fromBits, and exact for every input including NaN and the infinities,
+// because it reinterprets rather than converts.
+//
+// This is the escape hatch from the arithmetic above: hashing a float,
+// seeding a PRNG from one, or writing a float to a file byte-for-byte all need
+// the bits, and going through the round trip would lose NaN payloads and turn
+// -0.0 into 0.0.
+pub fn toBits: (x :f64) :i64 {
+    return bits::i64(x)
+}
+
+// The f64 whose bit pattern is b. Exact inverse of toBits.
+pub fn fromBits: (b :i64) :f64 {
+    return bits::f64(b)
+}
+
+// The machine epsilon, 2^-52: the smallest gap between 1.0 and the next
+// representable double. Spelled out in full because Mire's lexer has no
+// scientific-notation float literal, so 2.220446049250313e-16 does not parse.
+// The value matches math::consts::epsilon, which exists for the same reason.
+pub fn epsilon: () :f64 { return 0.0000000000000002220446049250313 }

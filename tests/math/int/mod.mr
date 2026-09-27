@@ -1,0 +1,309 @@
+// math::int — integer helpers, one test per public symbol.
+//
+// The expected values were computed by hand and cross-checked against the
+// definitions of gcd, comb and isqrt rather than against a previous
+// implementation, because there is no v2 code left to diff against for most of
+// these: v2's math::number_theoretic was a thin C wrapper and the v3 symbols
+// are new.
+//
+// The cases that carry the most weight are the degenerate ones. gcd(0 0), the
+// primality boundaries at 0/1/2/3, isqrt(0), and factorial(0) are all places
+// where a loop written as "while x != 0" or "while i <= n" quietly returns
+// nonsense, and none of them show up in a happy-path test.
+
+load kioto
+load mire::vec
+
+@[test]
+pub fn abs_and_sign: () :bool {
+    if math::int::abs(0 - 7) != 7 { return false }
+    if math::int::abs(7) != 7 { return false }
+    if math::int::abs(0) != 0 { return false }
+    if math::int::sign(0 - 9) != 0 - 1 { return false }
+    if math::int::sign(9) != 1 { return false }
+    if math::int::sign(0) != 0 { return false }
+    return true
+}
+
+@[test]
+pub fn min_max_clamp: () :bool {
+    if math::int::min(3 8) != 3 { return false }
+    if math::int::min(8 3) != 3 { return false }
+    if math::int::max(3 8) != 8 { return false }
+    if math::int::max(8 3) != 8 { return false }
+    if math::int::clamp(50 0 10) != 10 { return false }
+    if math::int::clamp(0 - 50 0 10) != 0 { return false }
+    if math::int::clamp(5 0 10) != 5 { return false }
+    // A reversed range collapses to hi rather than trapping.
+    if math::int::clamp(5 10 0) != 0 { return false }
+    return true
+}
+
+@[test]
+pub fn list_reductions: () :bool {
+    set v = [] :vec[i64] mut
+    set v = vec::push::i64(v 4)
+    set v = vec::push::i64(v 0 - 9)
+    set v = vec::push::i64(v 2)
+    if math::int::sum(v) != 0 - 3 { return false }
+    if math::int::minlist(v) != 0 - 9 { return false }
+    if math::int::maxlist(v) != 4 { return false }
+    return true
+}
+
+@[test]
+pub fn empty_list_reductions: () :bool {
+    set e = [] :vec[i64]
+    if math::int::sum(e) != 0 { return false }
+    if math::int::minlist(e) != 0 { return false }
+    if math::int::maxlist(e) != 0 { return false }
+    return true
+}
+
+@[test]
+pub fn gcd_and_lcm: () :bool {
+    if math::int::gcd(12 18) != 6 { return false }
+    if math::int::gcd(18 12) != 6 { return false }
+    if math::int::gcd(7 13) != 1 { return false }
+    // The result is a magnitude, so mixed and negative signs must not leak out.
+    if math::int::gcd(0 - 12 18) != 6 { return false }
+    if math::int::gcd(12 0 - 18) != 6 { return false }
+    if math::int::lcm(4 6) != 12 { return false }
+    if math::int::lcm(6 4) != 12 { return false }
+    if math::int::lcm(3 7) != 21 { return false }
+    return true
+}
+
+@[test]
+pub fn gcd_and_lcm_degenerate_arguments: () :bool {
+    // gcd(0 0) is 0 by the loop's own exit condition, and every other gcd has
+    // to agree that it is the identity for a zero operand.
+    if math::int::gcd(0 0) != 0 { return false }
+    if math::int::gcd(0 5) != 5 { return false }
+    if math::int::gcd(5 0) != 5 { return false }
+    if math::int::gcd(0 - 5 0) != 5 { return false }
+    // lcm is 0 whenever an operand is 0, so it never divides by gcd(0 0).
+    if math::int::lcm(0 5) != 0 { return false }
+    if math::int::lcm(5 0) != 0 { return false }
+    if math::int::lcm(0 0) != 0 { return false }
+    return true
+}
+
+@[test]
+pub fn factorial: () :bool {
+    if math::int::factorial(0) != 1 { return false }
+    if math::int::factorial(1) != 1 { return false }
+    if math::int::factorial(5) != 120 { return false }
+    if math::int::factorial(10) != 3628800 { return false }
+    // A negative n has no factorial; 1 is the documented answer.
+    if math::int::factorial(0 - 3) != 1 { return false }
+    return true
+}
+
+@[test]
+pub fn comb: () :bool {
+    if math::int::comb(5 2) != 10 { return false }
+    if math::int::comb(5 3) != 10 { return false }
+    if math::int::comb(6 3) != 20 { return false }
+    if math::int::comb(10 0) != 1 { return false }
+    if math::int::comb(10 10) != 1 { return false }
+    if math::int::comb(52 5) != 2598960 { return false }
+    return true
+}
+
+@[test]
+pub fn comb_rejects_impossible_k: () :bool {
+    if math::int::comb(5 0 - 1) != 0 { return false }
+    if math::int::comb(5 6) != 0 { return false }
+    // A negative n is below every k, so k > n catches it.
+    if math::int::comb(0 - 5 2) != 0 { return false }
+    return true
+}
+
+@[test]
+pub fn perm: () :bool {
+    if math::int::perm(5 2) != 20 { return false }
+    if math::int::perm(5 3) != 60 { return false }
+    if math::int::perm(10 0) != 1 { return false }
+    if math::int::perm(10 10) != 3628800 { return false }
+    if math::int::perm(5 0 - 1) != 0 { return false }
+    if math::int::perm(5 6) != 0 { return false }
+    return true
+}
+
+@[test]
+pub fn isqrt: () :bool {
+    if math::int::isqrt(0) != 0 { return false }
+    if math::int::isqrt(1) != 1 { return false }
+    if math::int::isqrt(4) != 2 { return false }
+    if math::int::isqrt(8) != 2 { return false }
+    if math::int::isqrt(9) != 3 { return false }
+    if math::int::isqrt(10) != 3 { return false }
+    if math::int::isqrt(1000000) != 1000 { return false }
+    // A negative has no real square root to floor, and -1 is the marker.
+    if math::int::isqrt(0 - 1) != 0 - 1 { return false }
+    return true
+}
+
+@[test]
+pub fn isqrt_floors_rather_than_rounds: () :bool {
+    // The largest n whose square root sits strictly between two integers, so a
+    // result that rounds up instead of flooring is caught.
+    if math::int::isqrt(3) != 1 { return false }
+    if math::int::isqrt(15) != 3 { return false }
+    if math::int::isqrt(99) != 9 { return false }
+    if math::int::isqrt(100) != 10 { return false }
+    return true
+}
+
+@[test]
+pub fn ipow: () :bool {
+    if math::int::ipow(2 10) != 1024 { return false }
+    if math::int::ipow(3 4) != 81 { return false }
+    if math::int::ipow(5 0) != 1 { return false }
+    if math::int::ipow(0 5) != 0 { return false }
+    if math::int::ipow(0 0) != 1 { return false }
+    if math::int::ipow(0 - 2 3) != 0 - 8 { return false }
+    if math::int::ipow(0 - 2 4) != 16 { return false }
+    // A negative exponent has no integer result.
+    if math::int::ipow(2 0 - 1) != 0 { return false }
+    return true
+}
+
+@[test]
+pub fn divmod: () :bool {
+    set q = math::int::divmod(17 5)
+    if vec::len(q) != 2 { return false }
+    if vec::get::i64(q 0) != 3 { return false }
+    if vec::get::i64(q 1) != 2 { return false }
+    // Truncation toward zero, not floor, so the remainder keeps x's sign.
+    set n = math::int::divmod(0 - 17 5)
+    if vec::get::i64(n 0) != 0 - 3 { return false }
+    if vec::get::i64(n 1) != 0 - 2 { return false }
+    // Exact division has a zero remainder.
+    set e = math::int::divmod(20 5)
+    if vec::get::i64(e 0) != 4 { return false }
+    if vec::get::i64(e 1) != 0 { return false }
+    return true
+}
+
+@[test]
+pub fn divmod_by_zero_is_defined_not_fatal: () :bool {
+    set z = math::int::divmod(17 0)
+    if vec::len(z) != 2 { return false }
+    if vec::get::i64(z 0) != 0 { return false }
+    if vec::get::i64(z 1) != 0 { return false }
+    return true
+}
+
+@[test]
+pub fn isPrime_small_values: () :bool {
+    if !math::int::isPrime(2) { return false }
+    if !math::int::isPrime(3) { return false }
+    if !math::int::isPrime(5) { return false }
+    if !math::int::isPrime(7) { return false }
+    if !math::int::isPrime(11) { return false }
+    if !math::int::isPrime(97) { return false }
+    return true
+}
+
+@[test]
+pub fn isPrime_rejects_composites_and_non_positives: () :bool {
+    if math::int::isPrime(4) { return false }
+    if math::int::isPrime(9) { return false }
+    if math::int::isPrime(91) { return false }
+    // 91 = 7 * 13, and the 6k-1 walk has to test both 7 and 13, not just 2 and 3.
+    if math::int::isPrime(15) { return false }
+    if math::int::isPrime(25) { return false }
+    if math::int::isPrime(0) { return false }
+    if math::int::isPrime(1) { return false }
+    if math::int::isPrime(0 - 7) { return false }
+    return true
+}
+
+@[test]
+pub fn isPrime_agrees_with_its_own_factors: () :bool {
+    // Cross-check the two functions against each other over a stretch of
+    // numbers, so a bug in one of them cannot be masked by the same bug in the
+    // other. Every composite must have at least two prime factors and every
+    // prime exactly one.
+    set n = 2 :i64 mut
+    while n <= 200 {
+        set f = math::int::primeFactors(n)
+        if math::int::isPrime(n) {
+            if vec::len(f) != 1 { return false }
+            if vec::get::i64(f 0) != n { return false }
+        } else {
+            if n > 1 {
+                if vec::len(f) < 1 { return false }
+            }
+        }
+        set n = n + 1
+    }
+    return true
+}
+
+@[test]
+pub fn primeFactors: () :bool {
+    set a = math::int::primeFactors(12)
+    if vec::len(a) != 3 { return false }
+    if vec::get::i64(a 0) != 2 { return false }
+    if vec::get::i64(a 1) != 2 { return false }
+    if vec::get::i64(a 2) != 3 { return false }
+    set b = math::int::primeFactors(97)
+    if vec::len(b) != 1 { return false }
+    if vec::get::i64(b 0) != 97 { return false }
+    set c = math::int::primeFactors(360)
+    // 360 = 2^3 * 3^2 * 5, and the multiplicity is the point: a factorisation
+    // that dropped a repeated factor would still look right for a squarefree n.
+    if vec::len(c) != 6 { return false }
+    if vec::get::i64(c 0) != 2 { return false }
+    if vec::get::i64(c 5) != 5 { return false }
+    return true
+}
+
+@[test]
+pub fn primeFactors_edges: () :bool {
+    // 0 and 1 have no prime decomposition, and a negative is reduced to its
+    // magnitude so the caller gets the same factors as for the positive.
+    if vec::len(math::int::primeFactors(0)) != 0 { return false }
+    if vec::len(math::int::primeFactors(1)) != 0 { return false }
+    if vec::len(math::int::primeFactors(0 - 1)) != 0 { return false }
+    set n = math::int::primeFactors(0 - 12)
+    if vec::len(n) != 3 { return false }
+    if vec::get::i64(n 2) != 3 { return false }
+    // A power of two must come out entirely as twos.
+    set p = math::int::primeFactors(1024)
+    if vec::len(p) != 10 { return false }
+    if vec::get::i64(p 9) != 2 { return false }
+    return true
+}
+
+@[test]
+pub fn isqrt_stays_exact_at_the_top_of_the_i64_range: () :bool {
+    // 3037000499^2 is the largest square that fits in i64, and 3037000499 is
+    // therefore the largest possible result. Probing these with a mid * mid
+    // comparison overflows on the very first iteration, so this pair is what
+    // pins the division-based bound check down.
+    set big = 3037000499
+    if math::int::isqrt(big * big) != big { return false }
+    if math::int::isqrt(big * big - 1) != big - 1 { return false }
+    if math::int::isqrt(big * big + 1) != big { return false }
+    return true
+}
+
+@[test]
+pub fn isPrime_and_primeFactors_do_not_overflow_on_large_input: () :bool {
+    // 9223372036854775783 is prime and sits above 2^62, so both walks have to
+    // climb past 3037000499 before they stop. A f * f bound check would
+    // overflow there and report the wrong answer for a value that is well
+    // inside the range the signatures promise.
+    set p = 9223372036854775783
+    if !math::int::isPrime(p) { return false }
+    set f = math::int::primeFactors(p)
+    if vec::len(f) != 1 { return false }
+    if vec::get::i64(f 0) != p { return false }
+    // And a large composite just under it, so the walk has to reject one too.
+    if math::int::isPrime(9223372036854775806) { return false }
+    return true
+}

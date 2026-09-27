@@ -1,0 +1,315 @@
+// math::random — the seeded generator, one test per public symbol.
+//
+// This is a deterministic generator, so the tests lean on that rather than
+// fighting it: reproducibility is the property callers actually depend on, and
+// it is what makes a failure here reproducible instead of intermittent.
+//
+// The distribution tests are written as "every draw is in range" over a long
+// run plus "the value is not stuck" rather than as a chi-squared style check.
+// A statistical assertion would be the wrong tool in a language with no seed
+// control at the call site, and the properties that actually broke in practice
+// are range and progress, not shape.
+//
+// Every test seeds first. The suite must not depend on the order the runner
+// visits the functions in, because the state is module-global and a test that
+// inherited the previous test's stream would be asserting on someone else's
+// numbers.
+
+load kioto
+load mire::vec
+
+@[test]
+pub fn seed_replays_the_same_sequence: () :bool {
+    math::random::seed(42)
+    set a1 = math::random::next() :i64 mut
+    set a2 = math::random::next() :i64 mut
+    set a3 = math::random::next()
+    // A different seed in between must not change what the replay produces.
+    math::random::seed(999)
+    set ignored = math::random::next()
+    math::random::seed(42)
+    set b1 = math::random::next() :i64 mut
+    set b2 = math::random::next() :i64 mut
+    set b3 = math::random::next()
+    if a1 != b1 { return false }
+    if a2 != b2 { return false }
+    if a3 != b3 { return false }
+    return true
+}
+
+@[test]
+pub fn seed_scrambles_neighbouring_seeds_apart: () :bool {
+    // Without the scramble, seeds 1 and 2 differ by one bit of state and the
+    // first draws come out correlated, which is exactly the failure the
+    // mixing step in seed exists to prevent.
+    math::random::seed(1)
+    set a1 = math::random::next() :i64 mut
+    set a2 = math::random::next() :i64 mut
+    set a3 = math::random::next()
+    math::random::seed(2)
+    set b1 = math::random::next() :i64 mut
+    set b2 = math::random::next() :i64 mut
+    set b3 = math::random::next()
+    if a1 == b1 { return false }
+    if a2 == b2 { return false }
+    if a3 == b3 { return false }
+    return true
+}
+
+@[test]
+pub fn seed_refuses_the_all_zero_state: () :bool {
+    // xorshift128 has the all-zero state as its only fixed point, so a literal
+    // zero seed would emit zeroes forever. seed remaps it, and this checks that
+    // both 0 and any multiple of 2^31 come back alive.
+    math::random::seed(0)
+    set i = 0 :i64 mut
+    while i < 200 {
+        if math::random::next() == 0 { return false }
+        set i = i + 1
+    }
+    math::random::seed(2147483648)
+    set j = 0 :i64 mut
+    while j < 200 {
+        if math::random::next() == 0 { return false }
+        set j = j + 1
+    }
+    return true
+}
+
+@[test]
+pub fn seed_accepts_a_negative_seed: () :bool {
+    // The seed is reduced to a magnitude, so a negative seed is usable and
+    // produces a live stream rather than a stuck one.
+    math::random::seed(0 - 7)
+    set i = 0 :i64 mut
+    set nonzero = 0 :i64 mut
+    while i < 100 {
+        if math::random::next() != 0 {
+            set nonzero = nonzero + 1
+        }
+        set i = i + 1
+    }
+    if nonzero < 50 { return false }
+    return true
+}
+
+@[test]
+pub fn next_stays_inside_its_31_bit_word: () :bool {
+    math::random::seed(1234)
+    set i = 0 :i64 mut
+    set distinct = 0 :i64 mut
+    set first = math::random::next() :i64 mut
+    while i < 500 {
+        set w = math::random::next()
+        if w < 0 { return false }
+        if w >= 2147483648 { return false }
+        if w != first {
+            set distinct = distinct + 1
+        }
+        set i = i + 1
+    }
+    // A generator stuck on one value would pass the range check above.
+    if distinct < 400 { return false }
+    return true
+}
+
+@[test]
+pub fn nextInt_stays_below_its_bound: () :bool {
+    math::random::seed(7)
+    set i = 0 :i64 mut
+    while i < 1000 {
+        set v = math::random::nextInt(6)
+        if v < 0 { return false }
+        if v >= 6 { return false }
+        set i = i + 1
+    }
+    // A bound of 1 can only ever produce 0, which is the degenerate case worth
+    // pinning because it is also the loop with nothing to reject.
+    set j = 0 :i64 mut
+    while j < 50 {
+        if math::random::nextInt(1) != 0 { return false }
+        set j = j + 1
+    }
+    return true
+}
+
+@[test]
+pub fn nextInt_reaches_every_residue: () :bool {
+    // A generator that only ever returned 0, or that always landed on a
+    // multiple of something, would pass the range check. Counting the
+    // residues shows the walk actually covers the bound.
+    math::random::seed(11)
+    set c0 = 0 :i64 mut
+    set c1 = 0 :i64 mut
+    set c2 = 0 :i64 mut
+    set i = 0 :i64 mut
+    while i < 300 {
+        set r = math::random::nextInt(3)
+        if r == 0 { set c0 = c0 + 1 }
+        if r == 1 { set c1 = c1 + 1 }
+        if r == 2 { set c2 = c2 + 1 }
+        set i = i + 1
+    }
+    if c0 == 0 { return false }
+    if c1 == 0 { return false }
+    if c2 == 0 { return false }
+    return true
+}
+
+@[test]
+pub fn nextInt_handles_a_degenerate_bound_without_trapping: () :bool {
+    math::random::seed(3)
+    if math::random::nextInt(0) != 0 { return false }
+    if math::random::nextInt(0 - 5) != 0 { return false }
+    return true
+}
+
+@[test]
+pub fn nextInt_serves_bounds_wider_than_one_word: () :bool {
+    // 2^31 is where the single-word domain runs out, and a bound just past it
+    // is the case a one-word implementation silently answers with 0 forever.
+    math::random::seed(5)
+    set i = 0 :i64 mut
+    set nonzero = 0 :i64 mut
+    while i < 200 {
+        set v = math::random::nextInt(3000000000)
+        if v < 0 { return false }
+        if v >= 3000000000 { return false }
+        if v != 0 {
+            set nonzero = nonzero + 1
+        }
+        set i = i + 1
+    }
+    if nonzero < 150 { return false }
+    return true
+}
+
+@[test]
+pub fn nextInt_reports_zero_past_the_widest_supported_bound: () :bool {
+    // Past 2^62 there is no representable domain left to reject within, so the
+    // documented answer is 0 rather than a wrapped or biased value.
+    math::random::seed(9)
+    if math::random::nextInt(4611686018427387905) != 0 { return false }
+    if math::random::nextInt(9223372036854775807) != 0 { return false }
+    // The bound that is exactly 2^62 is still served.
+    set v = math::random::nextInt(4611686018427387904)
+    if v < 0 { return false }
+    if v >= 4611686018427387904 { return false }
+    return true
+}
+
+@[test]
+pub fn nextFloat_lands_inside_the_unit_interval: () :bool {
+    math::random::seed(21)
+    set i = 0 :i64 mut
+    set below = 0 :i64 mut
+    set above = 0 :i64 mut
+    while i < 500 {
+        set x = math::random::nextFloat()
+        if x < 0.0 { return false }
+        // 1.0 is the one value the range must exclude, so it gets its own
+        // check rather than riding along with the lower bound.
+        if x >= 1.0 { return false }
+        if x < 0.5 { set below = below + 1 }
+        if x >= 0.5 { set above = above + 1 }
+        set i = i + 1
+    }
+    if below == 0 { return false }
+    if above == 0 { return false }
+    return true
+}
+
+@[test]
+pub fn nextFloat_fills_the_low_order_bits: () :bool {
+    // Built from one word the result would be a multiple of 2^-31 and could
+    // never sit between two of them. The second word is what puts the low
+    // mantissa bits to use, so a draw lands strictly between two multiples of
+    // 2^-31 instead of exactly on one.
+    //
+    // This is a multiple test rather than a small-minimum test on purpose. A
+    // 31-bit word makes hi/2^31 dominate the sum, so the result only falls
+    // below 2^-31 when hi happens to be zero — roughly one draw in 2^31. Asking
+    // for a tiny minimum over a few hundred draws is not a property any correct
+    // build can satisfy, however correct the implementation is.
+    math::random::seed(33)
+    set multiples = 0 :i64 mut
+    set i = 0 :i64 mut
+    while i < 500 {
+        set x = math::random::nextFloat()
+        set scaled = x * 2147483648.0
+        if scaled == math::float::floor(scaled) { set multiples = multiples + 1 }
+        set i = i + 1
+    }
+    // Landing on a multiple every single time would mean the low word is being
+    // dropped. An occasional one is legitimate — the low word can be zero — so
+    // the assertion is that it is not the rule rather than that it never
+    // happens at all.
+    if multiples == 500 { return false }
+    return true
+}
+
+@[test]
+pub fn nextFloat_moves: () :bool {
+    // A constant stream would satisfy every range assertion above.
+    math::random::seed(44)
+    set first = math::random::nextFloat() :f64 mut
+    set changed = 0 :i64 mut
+    set i = 0 :i64 mut
+    while i < 100 {
+        if math::random::nextFloat() != first {
+            set changed = changed + 1
+        }
+        set i = i + 1
+    }
+    if changed < 90 { return false }
+    return true
+}
+
+@[test]
+pub fn pick_returns_a_member_of_the_list: () :bool {
+    math::random::seed(8)
+    set v = [] :vec[i64] mut
+    set v = vec::push::i64(v 10)
+    set v = vec::push::i64(v 20)
+    set v = vec::push::i64(v 30)
+    set v = vec::push::i64(v 40)
+    set i = 0 :i64 mut
+    while i < 300 {
+        set x = math::random::pick(v)
+        if x != 10 && x != 20 && x != 30 && x != 40 { return false }
+        set i = i + 1
+    }
+    return true
+}
+
+@[test]
+pub fn pick_covers_every_element_eventually: () :bool {
+    math::random::seed(17)
+    set v = [] :vec[i64] mut
+    set v = vec::push::i64(v 1)
+    set v = vec::push::i64(v 2)
+    set v = vec::push::i64(v 3)
+    set seen1 = 0 :i64 mut
+    set seen2 = 0 :i64 mut
+    set seen3 = 0 :i64 mut
+    set i = 0 :i64 mut
+    while i < 300 {
+        set x = math::random::pick(v)
+        if x == 1 { set seen1 = seen1 + 1 }
+        if x == 2 { set seen2 = seen2 + 1 }
+        if x == 3 { set seen3 = seen3 + 1 }
+        set i = i + 1
+    }
+    if seen1 == 0 { return false }
+    if seen2 == 0 { return false }
+    if seen3 == 0 { return false }
+    return true
+}
+
+@[test]
+pub fn pick_of_an_empty_list_reports_zero: () :bool {
+    math::random::seed(6)
+    set e = [] :vec[i64]
+    if math::random::pick(e) != 0 { return false }
+    return true
+}
