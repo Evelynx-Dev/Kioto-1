@@ -1,0 +1,47 @@
+// A consumer's own definition and a library's namespaced one can share a name.
+//
+// math::float::isNan is the case that makes this worth pinning: the bare name
+// `isNan` is a plausible thing for a caller to define for itself, and the
+// loaded module publishes the same one. Both call forms have to keep meaning
+// what they say — the bare call reaches the caller's own function, the
+// qualified call reaches the library's — or a library load silently rewrites
+// the caller's code.
+//
+// The local below is deliberately distinguishable from the library's: it
+// answers `true` to everything, including finite input, which isNan never
+// does. If the bare call ever stopped reaching it, the first test fails.
+
+load kioto::math::float
+
+// Answers `true` to every input, which the library's isNan never does.
+fn isNan: (x :f64) :bool {
+    return true
+}
+
+@[test]
+pub fn the_bare_call_reaches_the_local_definition: () :bool {
+    // isNan(1.0) must be true here, because `true` is all the local ever
+    // returns. The library's isNan(1.0) is false.
+    return isNan(1.0)
+}
+
+@[test]
+pub fn the_qualified_call_reaches_the_library: () :bool {
+    // 0.0/0.0 is NaN. Note that 1.0/0.0 is not: it is an infinity, and
+    // isNan of an infinity is false. Getting that backwards is the easy
+    // mistake in this family of tests.
+    return math::float::isNan(0.0 / 0.0)
+}
+
+@[test]
+pub fn the_qualified_call_is_not_the_local_one: () :bool {
+    // The local answers true to everything, so a false here is direct
+    // evidence that the qualified name did not collapse onto it.
+    return !math::float::isNan(1.0)
+}
+
+@[test]
+pub fn the_qualified_call_separates_nan_from_infinity: () :bool {
+    return !math::float::isNan(1.0 / 0.0)
+    return !math::float::isNan(0.0 - 1.0 / 0.0)
+}
