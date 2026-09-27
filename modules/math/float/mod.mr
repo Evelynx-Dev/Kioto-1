@@ -3,10 +3,10 @@
 // Binary64 predicates and the rounding family, in pure Mire with no rt_math_*
 // extern, so the module links in a runtime = "none" build.
 //
-// Public symbols (21):
+// Public symbols (20):
 //   abs sign min max copysign
 //   trunc fract ceil floor round
-//   isNan isInf isFinite isNormal isSubnormal
+//   isNan isInf isFinite isNormal isSubnormal integral_magnitude
 //   toBits fromBits ulp epsilon
 //
 // NaN and the infinities are handled by IEEE-754 comparison rules rather than
@@ -37,6 +37,13 @@ fn nan: () :f64 { return 0.0 / 0.0 }
 // True when |x| is small enough for the power-of-two decomposition to be
 // exact, which is every finite f64 below 2^52. NaN and the infinities fail
 // here, and that is what makes the rounding family hand them back untouched.
+//
+// Public because it is the gate the rounding family is built on, and a caller
+// implementing its own decomposition needs the same question answered the same
+// way. mod.mr carries a private copy of this predicate: the root tier never
+// calls into a submodule — it is the flat quick tier, self-contained on
+// purpose — so sharing would mean breaking that. The two are meant to agree;
+// change one and change the other.
 pub fn integral_magnitude: (x :f64) :bool {
     if x != x {
         return false
