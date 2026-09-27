@@ -6,17 +6,18 @@ entry = "mod.mr"
 # The root helpers (abs, trunc, sum, ...) are plain pub fn in mod.mr and are
 # reached through the package entry, so they must NOT be listed here. crypto
 # and strings set the same precedent.
+#
+# Only modules that exist are listed. The directory tree also holds
+# stats/, complex/, decimal/, power/, trig/, hyperbolic/ and special/, but each
+# is a two-line placeholder pointing at todo.md, and `sum/` is not a module at
+# all — `sum` is a root helper in mod.mr. Exporting a placeholder gives a
+# consumer an empty namespace and an "Unknown function" for the call it wanted,
+# which reads like a compiler bug; a missing export says plainly that the
+# module is not there yet. Each placeholder joins this table when it has
+# functions.
 [exports]
-consts     = "consts/mod.mr"
-seq        = "seq/mod.mr"
-int        = "int/mod.mr"
-float      = "float/mod.mr"
-sum        = "sum/mod.mr"
-stats      = "stats/mod.mr"
-complex    = "complex/mod.mr"
-decimal    = "decimal/mod.mr"
-random     = "random/mod.mr"
-power      = "power/mod.mr"
-trig       = "trig/mod.mr"
-hyperbolic = "hyperbolic/mod.mr"
-special    = "special/mod.mr"
+consts = "consts/mod.mr"
+seq    = "seq/mod.mr"
+int    = "int/mod.mr"
+float  = "float/mod.mr"
+random = "random/mod.mr"
