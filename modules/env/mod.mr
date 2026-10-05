@@ -4,14 +4,21 @@ extern fn rt_get_args: (argc :i32, argv :ptr) :vec[str] lib "c"
 extern fn pal_env_cwd: () :&str lib "c"
 extern fn pal_env_get: (name :&str) :&str lib "c"
 
+// The command line as the runtime received it, argv[0] first. Takes the raw
+// argc/argv pair because Mire's main takes no parameters; a program that
+// wants arguments stores them in a local on the first line of main.
 pub fn args: (argc :i32, argv :ptr) :vec[str] {
     return rt_get_args(argc argv)
 }
 
+// Working directory. Borrowed: the string belongs to the process environment
+// and stays valid for the life of the process. Do not free it.
 pub fn cwd: () :&str {
     return pal_env_cwd()
 }
 
+// Value of an environment variable, or the empty string when it is not set.
+// Also borrowed, and also process-owned.
 pub fn var: (name :&str) :&str {
     return pal_env_get(name)
 }

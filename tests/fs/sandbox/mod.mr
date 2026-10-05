@@ -1,0 +1,475 @@
+// fs::sandbox / fs::unrestricted / proc::shell — the security boundary.
+//
+// Every test here is an end-to-end check against the real filesystem and a
+// real /bin/sh: fixtures are created under the working directory, real
+// symlinks are planted, and a real shell is invoked. Nothing here is a
+// tautology like `return true`, and nothing shells out to `ls | grep` to
+// decide whether a policy held.
+//
+// The shape of the suite is deny-then-grant. For each restriction there is a
+// test that it blocks by default and a test that the documented escape hatch
+// actually opens it, because a gate that denies everything would pass the first
+// half and be useless.
+
+load kioto
+
+// A scratch directory under the working directory, which is the sandbox root,
+// so these fixtures are themselves allowed to be created.
+
+// The fixture lives INSIDE the sandbox root, which is the working directory.
+// That is deliberate: a fixture in /tmp would be outside the sandbox, and the
+// setup would have to opt out of the very policy it is about to test. Using a
+// relative path also keeps the suite self-contained.
+// A scratch directory for one test, inside the working directory, which is
+// the sandbox root. The fixture lives INSIDE the sandbox root deliberately: a
+// fixture in /tmp would be outside the sandbox, and the setup would have to
+// opt out of the very policy it is about to test. Using a relative path also
+// keeps the suite self-contained.
+//
+// The directory is named after the test instead of being shared, because the
+// suite runs several tests at once: a shared fixture has them deleting each
+// other's files mid-run, which is a race, not a test.
+fn setup: (name :&str) :str {
+    set d = strings::copy(name)
+    use fs::remove_all(d)
+    if !fs::mkdir(d) {
+        return ""
+    }
+    return d
+}
+
+fn teardown: (d :&str) {
+    set entries = fs::list(d)
+    set i = 0 :i64 mut
+    while i < len(entries) {
+        set name = vec::get::str(entries, i)
+        use fs::remove_all(fs::path::join(d, name))
+        set i = i + 1
+    }
+    use fs::remove(d)
+}
+
+// ═══ Default posture ═══════════════════════════════════════════
+
+@[test]
+pub fn default_root_is_the_working_directory: () :bool {
+    // The root must be a real, absolute, existing directory or nothing works.
+    set root = fs::sandbox::get_root()
+    if root == "" {
+        return false
+    }
+    if !fs::exists(root) {
+        return false
+    }
+    if !fs::sandbox::permits("some-file.txt") {
+        return false
+    }
+    return true
+}
+
+@[test]
+pub fn default_depth_is_zero: () :bool {
+    // Nothing should have opened a scope behind the caller's back; a program
+    // that starts with the policy already suspended is not default-deny.
+    if fs::sandbox::unsafe_depth() != 0 {
+        return false
+    }
+    return true
+}
+
+@[test]
+pub fn relative_paths_inside_the_root_are_allowed: () :bool {
+    set d = setup("relative_paths_inside_the_root_are_allowed")
+    if d == "" {
+        return false
+    }
+    fs::write(fs::path::join(d, "allowed.txt") "payload")
+    set ok = fs::exists(fs::path::join(d, "allowed.txt"))
+    use teardown(d)
+    return ok
+}
+
+// ═══ Denied by default ═════════════════════════════════════════
+
+@[test]
+pub fn absolute_path_outside_the_root_is_denied: () :bool {
+    // /etc/hostname exists on every Linux box this runs on, so a false here
+    // means the policy blocked it, not that the file was missing. The
+    // precondition is checked through the unrestricted variant: asking
+    // "does /etc/hostname exist" through the sandboxed call would answer "no"
+    // by policy, and the test would pass for the wrong reason.
+    if !fs::unrestricted::exists("/etc/hostname") {
+        return false
+    }
+    if fs::sandbox::permits("/etc/hostname") {
+        return false
+    }
+    return true
+}
+
+@[test]
+pub fn denied_absolute_read_returns_empty: () :bool {
+    // fs::read must not hand back the contents even though the file is
+    // readable by this process. Returning the data would make the check
+    // cosmetic.
+    if fs::exists("/etc/hostname") {
+        if len(fs::read("/etc/hostname")) != 0 {
+            return false
+        }
+    }
+    return true
+}
+
+@[test]
+pub fn denied_absolute_exists_reports_false: () :bool {
+    if fs::exists("/etc/hostname") {
+        if fs::exists("/etc/hostname") {
+            return false
+        }
+    }
+    return true
+}
+
+@[test]
+pub fn denial_carries_a_reason: () :bool {
+    // A silent false is not a security control you can debug or alert on.
+    use fs::sandbox::permits("/etc/hostname")
+    if fs::sandbox::reason() == fs::reason_none() {
+        return false
+    }
+    if fs::sandbox::reason_text() == "" {
+        return false
+    }
+    if fs::sandbox::reason_text() == "allowed" {
+        return false
+    }
+    return true
+}
+
+@[test]
+pub fn parent_traversal_is_denied: () :bool {
+    if fs::sandbox::permits("../etc/hostname") {
+        return false
+    }
+    if fs::sandbox::permits("../../etc/hostname") {
+        return false
+    }
+    return true
+}
+
+@[test]
+pub fn traversal_that_looks_innocent_is_still_denied: () :bool {
+    // The join happens before normalisation, so a path that STARTS inside the
+    // root and climbs out later must be caught. This is the shape an attacker
+    // actually uses.
+    set d = setup("traversal_that_looks_innocent_is_still_denied")
+    if d == "" {
+        return false
+    }
+    set sneaky = strings::concat(d, "/../../../../etc/hostname")
+    if fs::sandbox::permits(sneaky) {
+        use teardown(d)
+        return false
+    }
+    if fs::sandbox::reason() != fs::reason_escape() {
+        use teardown(d)
+        return false
+    }
+    use teardown(d)
+    return true
+}
+
+@[test]
+pub fn filesystem_root_is_denied: () :bool {
+    if fs::sandbox::permits("/") {
+        return false
+    }
+    return true
+}
+
+@[test]
+pub fn sibling_prefix_is_not_a_match: () :bool {
+    // "<root>_evil" starts with the root as a STRING but is a different
+    // directory. A prefix test that forgets the trailing separator lets this
+    // through, which is why it gets its own test.
+    set root = fs::sandbox::get_root()
+    if root == "" {
+        return false
+    }
+    set evil = strings::concat(root, "_evil/passwd")
+    if fs::sandbox::permits(evil) {
+        return false
+    }
+    return true
+}
+
+// ═══ Symlink escapes ══════════════════════════════════════════
+
+@[test]
+pub fn symlink_pointing_out_of_the_root_is_denied: () :bool {
+    set d = setup("symlink_pointing_out_of_the_root_is_denied")
+    if d == "" {
+        return false
+    }
+    set link = fs::path::join(d, "escape")
+    fs::drop(link)
+    set made = proc::run::output("/bin/ln" ["-sfn" "/etc" link])
+    if proc::run::last_exit() != 0 {
+        use teardown(d)
+        return false
+    }
+    if fs::sandbox::permits(fs::path::join(link, "hostname")) {
+        use teardown(d)
+        return false
+    }
+    if fs::sandbox::reason() != fs::reason_symlink() {
+        use teardown(d)
+        return false
+    }
+    use teardown(d)
+    return true
+}
+
+@[test]
+pub fn reading_through_an_escaping_symlink_returns_nothing: () :bool {
+    set d = setup("reading_through_an_escaping_symlink_returns_nothing")
+    if d == "" {
+        return false
+    }
+    set link = fs::path::join(d, "escape2")
+    fs::drop(link)
+    set made = proc::run::output("/bin/ln" ["-sfn" "/etc" link])
+    if proc::run::last_exit() != 0 {
+        use teardown(d)
+        return false
+    }
+    if len(fs::read(fs::path::join(link, "hostname"))) != 0 {
+        use teardown(d)
+        return false
+    }
+    use teardown(d)
+    return true
+}
+
+@[test]
+pub fn symlink_that_stays_inside_the_root_is_allowed: () :bool {
+    // A policy that denies every link is not a policy, it is a broken one.
+    set d = setup("symlink_that_stays_inside_the_root_is_allowed")
+    if d == "" {
+        return false
+    }
+    set real = fs::path::join(d, "real")
+    set link = fs::path::join(d, "inside_link")
+    fs::write(fs::path::join(real, "note.txt") "hello")
+    fs::drop(link)
+    set made = proc::run::output("/bin/ln" ["-sfn" real link])
+    if proc::run::last_exit() != 0 {
+        use teardown(d)
+        return false
+    }
+    set ok = fs::sandbox::permits(fs::path::join(link, "note.txt"))
+    use teardown(d)
+    return ok
+}
+
+@[test]
+pub fn escaping_symlink_can_still_be_removed: () :bool {
+    // The asymmetry that matters: you may DELETE a link that points outside the
+    // sandbox, because unlinking a link does not follow it. If removal were
+    // blocked, a program could not clean up after itself.
+    set d = setup("escaping_symlink_can_still_be_removed")
+    if d == "" {
+        return false
+    }
+    set link = fs::path::join(d, "removable")
+    fs::drop(link)
+    set made = proc::run::output("/bin/ln" ["-sfn" "/etc" link])
+    if proc::run::last_exit() != 0 {
+        use teardown(d)
+        return false
+    }
+    set removed = fs::remove(link)
+    use teardown(d)
+    return removed
+}
+
+// ═══ The escape hatch actually opens it ═══════════════════════
+
+@[test]
+pub fn unrestricted_read_reads_what_the_default_refused: () :bool {
+    // The grant has to be a real grant. This is the test that would fail if
+    // unrestricted::read were implemented as a copy of the sandboxed path.
+    if !fs::unrestricted::exists("/etc/hostname") {
+        return false
+    }
+    if len(fs::read("/etc/hostname")) != 0 {
+        return false
+    }
+    if len(fs::unrestricted::read("/etc/hostname")) == 0 {
+        return false
+    }
+    return true
+}
+
+@[test]
+pub fn enter_and_exit_balance: () :bool {
+    set before = fs::sandbox::unsafe_depth()
+    set was = fs::unrestricted::enter()
+    if fs::sandbox::unsafe_depth() != was + 1 {
+        return false
+    }
+    if !fs::sandbox::permits("/etc/hostname") {
+        return false
+    }
+    use fs::unrestricted::exit()
+    if fs::sandbox::unsafe_depth() != was {
+        return false
+    }
+    if fs::sandbox::permits("/etc/hostname") {
+        return false
+    }
+    if fs::sandbox::unsafe_depth() != before {
+        return false
+    }
+    return true
+}
+
+@[test]
+pub fn nested_scopes_unwind_independently: () :bool {
+    // Leaving an inner scope must not close the outer one: a program with two
+    // nested grants and one exit should still hold the outer grant.
+    set was = fs::unrestricted::enter()
+    set inner = fs::unrestricted::enter()
+    if fs::sandbox::unsafe_depth() != was + 2 {
+        return false
+    }
+    use fs::unrestricted::exit()
+    if fs::sandbox::unsafe_depth() != was + 1 {
+        return false
+    }
+    if !fs::sandbox::permits("/etc/hostname") {
+        return false
+    }
+    use fs::unrestricted::exit()
+    if fs::sandbox::permits("/etc/hostname") {
+        return false
+    }
+    return true
+}
+
+@[test]
+pub fn unbalanced_exit_does_not_invert_the_policy: () :bool {
+    // A depth that is already zero stays zero. If it wrapped instead, calling
+    // exit more times than enter would flip the check and allow everything.
+    set before = fs::sandbox::unsafe_depth()
+    if before != 0 {
+        return false
+    }
+    use fs::unrestricted::exit()
+    use fs::unrestricted::exit()
+    if fs::sandbox::unsafe_depth() != 0 {
+        return false
+    }
+    if fs::sandbox::permits("/etc/hostname") {
+        return false
+    }
+    return true
+}
+
+@[test]
+pub fn unrestricted_exists_agrees_with_the_filesystem: () :bool {
+    if !fs::unrestricted::exists("/etc/hostname") {
+        return false
+    }
+    if fs::unrestricted::exists("/etc/definitely-not-here-12345") {
+        return false
+    }
+    return true
+}
+
+// ═══ Shell is denied by default ═══════════════════════════════
+
+@[test]
+pub fn shell_is_denied_by_default: () :bool {
+    set out = proc::shell("echo pwned")
+    if out != "" {
+        return false
+    }
+    if fs::last_error() != fs::err_permission() {
+        return false
+    }
+    if proc::shell_status() != -1 {
+        return false
+    }
+    return true
+}
+
+@[test]
+pub fn shell_runs_inside_an_explicit_scope: () :bool {
+    // The grant must genuinely execute: if this returns false the gate is
+    // denying everything, which the deny tests above would not catch.
+    set was = fs::unrestricted::enter()
+    set out = proc::shell("echo marker-value")
+    use fs::unrestricted::exit()
+    if !strings::contains(out, "marker-value") {
+        return false
+    }
+    return true
+}
+
+@[test]
+pub fn shell_reports_the_exit_status: () :bool {
+    set was = fs::unrestricted::enter()
+    set out = proc::shell("exit 7")
+    set st = proc::shell_status()
+    use fs::unrestricted::exit()
+    if st != 7 {
+        return false
+    }
+    return true
+}
+
+@[test]
+pub fn shell_captures_stderr_too: () :bool {
+    // A command that fails with a message must not lose the message, or the
+    // caller cannot tell a silent failure from a hang.
+    set was = fs::unrestricted::enter()
+    set out = proc::shell("echo problem-here >&2")
+    use fs::unrestricted::exit()
+    if !strings::contains(out, "problem-here") {
+        return false
+    }
+    return true
+}
+
+@[test]
+pub fn shell_is_denied_again_after_the_scope_closes: () :bool {
+    // The property that makes a scope a scope: the hole closes.
+    set was = fs::unrestricted::enter()
+    set out1 = proc::shell("echo first")
+    use fs::unrestricted::exit()
+    set out2 = proc::shell("echo second")
+    if out1 == "" {
+        return false
+    }
+    if out2 != "" {
+        return false
+    }
+    return true
+}
+
+@[test]
+pub fn argv_api_still_works_without_any_scope: () :bool {
+    // The whole point of default-deny is not "no processes". argv execution
+    // involves no shell and no parsing, so it needs no grant. If this fails
+    // the sandbox has broken ordinary use and every consumer will need to
+    // opt in, which would make the gate useless in practice.
+    set out = proc::run::output("/bin/echo" ["plain-argv"])
+    if !strings::contains(out, "plain-argv") {
+        return false
+    }
+    if fs::sandbox::unsafe_depth() != 0 {
+        return false
+    }
+    return true
+}

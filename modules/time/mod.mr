@@ -3,10 +3,18 @@ module time
 extern fn pal_time_now_ms: () :i64 lib "c"
 extern fn pal_time_now_ns: () :i64 lib "c"
 
+// Wall-clock reading, split by unit. Both are the same clock: use ms for
+// measuring and ns when you need to order events inside a millisecond.
 pub fn now: () {
+    // Milliseconds since the Unix epoch.
     pub fn ms: () :i64 { return pal_time_now_ms() }
+    // Nanoseconds since the Unix epoch.
     pub fn ns: () :i64 { return pal_time_now_ns() }
 }
 
+// Milliseconds between a mark taken earlier and now. The subtraction is in
+// this direction on purpose: pass the earlier value in, get the duration out.
 pub fn elapsed: (start :i64) :i64 { return pal_time_now_ms() - start }
+// A reading to hand to time::elapsed later. It only exists so the calling
+// code says which of the two ends of the interval it is holding.
 pub fn mark: () :i64 { return pal_time_now_ms() }

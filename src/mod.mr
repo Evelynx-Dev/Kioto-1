@@ -12,8 +12,11 @@
 // Per-module notes:
 //   - The 2.x layout under core/ is gone; everything now lives in modules/ with
 //     the .mr extension.
-//   - math is a placeholder: the 3.0 math surface is a pure-Mire rewrite and
-//     lands submodule by submodule (see modules/math/mod.mr).
+//   - math is being rebuilt in 3.0 as a pure-Mire rewrite, one submodule at a
+//     time. Root, consts, float, int, random, seq, stats and sum are done;
+//     complex, decimal, hyperbolic, power, special and trig are still to come
+//     and are not exported until they have real symbols behind them
+//     (see modules/math/mod.mr).
 
 @[no_main]
 module kioto

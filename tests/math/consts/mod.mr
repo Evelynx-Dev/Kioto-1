@@ -1,4 +1,4 @@
-// math::consts — exactness of the constant literals.
+// math::consts — one test per public constant.
 //
 // The assertions are on the raw bit pattern rather than on a printed value,
 // because a printed 3.14159 would hide a literal that is off by an ulp or two.
@@ -6,34 +6,98 @@
 // double, so a lost or rounded digit in a literal fails the test instead of
 // quietly shipping a slightly wrong constant.
 //
-// The identities below are the readable companion checks: they would survive a
-// self-consistent typo in a related pair, but the bit checks above would not.
+// Every test carries a second assertion in ordinary arithmetic, because a bit
+// pattern says the literal is the double the author intended and says nothing
+// about whether that double is the constant anyone means by the name. The
+// ranges are the ones a reader would recognise at a glance: pi between 3.14 and
+// 3.15, the golden ratio above 1.6, and so on.
+//
+// identities_hold_to_double_precision is the readable companion check at the
+// bottom: it would survive a self-consistent typo in a related pair, but the bit
+// checks above would not.
 
 load kioto
 
 @[test]
-pub fn circle_constants_are_exact: () :bool {
+pub fn pi_is_exact: () :bool {
     if bits::i64(math::consts::pi()) != 4614256656552045848 { return false }
+    if math::consts::pi() < 3.14 || math::consts::pi() > 3.15 { return false }
+    return true
+}
+
+@[test]
+pub fn tau_is_exact: () :bool {
     if bits::i64(math::consts::tau()) != 4618760256179416344 { return false }
+    // A full turn in radians, a little past 6.28
+    if math::consts::tau() < 6.28 || math::consts::tau() > 6.29 { return false }
     return true
 }
 
 @[test]
-pub fn logarithmic_constants_are_exact: () :bool {
+pub fn e_is_exact: () :bool {
     if bits::i64(math::consts::e()) != 4613303445314885481 { return false }
-    if bits::i64(math::consts::ln2()) != 4604418534313441775 { return false }
-    if bits::i64(math::consts::ln10()) != 4612367379483415830 { return false }
-    if bits::i64(math::consts::log2e()) != 4609176140021203710 { return false }
+    if math::consts::e() < 2.71 || math::consts::e() > 2.72 { return false }
     return true
 }
 
 @[test]
-pub fn radical_constants_are_exact: () :bool {
+pub fn ln2_is_exact: () :bool {
+    if bits::i64(math::consts::ln2()) != 4604418534313441775 { return false }
+    // The natural log of 2, just under 0.7
+    if math::consts::ln2() < 0.69 || math::consts::ln2() > 0.7 { return false }
+    return true
+}
+
+@[test]
+pub fn ln10_is_exact: () :bool {
+    if bits::i64(math::consts::ln10()) != 4612367379483415830 { return false }
+    // The natural log of 10, a little over 2.3
+    if math::consts::ln10() < 2.3 || math::consts::ln10() > 2.31 { return false }
+    return true
+}
+
+@[test]
+pub fn log2e_is_exact: () :bool {
+    if bits::i64(math::consts::log2e()) != 4609176140021203710 { return false }
+    // The binary log of e, a little over 1.44
+    if math::consts::log2e() < 1.44 || math::consts::log2e() > 1.45 { return false }
+    return true
+}
+
+@[test]
+pub fn phi_is_exact: () :bool {
     if bits::i64(math::consts::phi()) != 4609965796441453736 { return false }
+    // The golden ratio, just under 1.62
+    if math::consts::phi() < 1.61 || math::consts::phi() > 1.62 { return false }
+    return true
+}
+
+@[test]
+pub fn golden_is_exact: () :bool {
     if bits::i64(math::consts::golden()) != 4603741974828149073 { return false }
+    // Not phi itself but its conjugate, just under 0.62 and equal to 1/phi
+    if math::consts::golden() < 0.61 || math::consts::golden() > 0.62 { return false }
+    return true
+}
+
+@[test]
+pub fn sqrt2_is_exact: () :bool {
     if bits::i64(math::consts::sqrt2()) != 4609047870845172685 { return false }
+    if math::consts::sqrt2() < 1.41 || math::consts::sqrt2() > 1.42 { return false }
+    return true
+}
+
+@[test]
+pub fn sqrt3_is_exact: () :bool {
     if bits::i64(math::consts::sqrt3()) != 4610479282544200874 { return false }
+    if math::consts::sqrt3() < 1.73 || math::consts::sqrt3() > 1.74 { return false }
+    return true
+}
+
+@[test]
+pub fn sqrt5_is_exact: () :bool {
     if bits::i64(math::consts::sqrt5()) != 4612217596255138984 { return false }
+    if math::consts::sqrt5() < 2.23 || math::consts::sqrt5() > 2.24 { return false }
     return true
 }
 

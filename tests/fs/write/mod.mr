@@ -1,0 +1,81 @@
+// fs::write — the result has to mean something.
+//
+// A write that reports success when nothing was written is worse than one
+// that reports failure, because the caller stops looking. These tests check
+// both halves: that a real write says true, and that the ways a write can fail
+// actually say false.
+
+load kioto
+
+fn setup: (name :&str) :str {
+    set d = strings::copy(name)
+    use fs::remove_all(d)
+    if !fs::mkdir(d) {
+        return ""
+    }
+    return d
+}
+
+fn teardown: (d :&str) {
+    set entries = fs::list(d)
+    set i = 0 :i64 mut
+    while i < len(entries) {
+        set name = vec::get::str(entries, i)
+        use fs::remove_all(fs::path::join(d, name))
+        set i = i + 1
+    }
+    use fs::remove(d)
+}
+
+@[test]
+pub fn a_write_that_happens_reports_true: () :bool {
+    set d = setup("kioto-fsw-ok")
+    if d == "" { return false }
+    set target = fs::path::join(d, "note.txt")
+    set wrote = fs::write(target, "hello")
+    set back = fs::read(target)
+    use teardown(d)
+    if !wrote { return false }
+    return back == "hello"
+}
+
+@[test]
+pub fn an_empty_write_still_reports_true: () :bool {
+    // Zero bytes is a complete write of zero bytes, not a failed one. A check
+    // written as "did anything come back" would get this wrong.
+    set d = setup("kioto-fsw-empty")
+    if d == "" { return false }
+    set target = fs::path::join(d, "empty.txt")
+    set wrote = fs::write(target, "")
+    use teardown(d)
+    return wrote
+}
+
+@[test]
+pub fn writing_under_a_missing_parent_reports_false: () :bool {
+    // The case that made this a real defect: the write failed, the old code
+    // threw the result away, and the caller carried on believing the file was
+    // there. Nothing on disk should exist afterwards.
+    set d = setup("kioto-fsw-missing")
+    if d == "" { return false }
+    set target = fs::path::join(d, "no-such-dir/nested.txt")
+    set wrote = fs::write(target, "hello")
+    set exists = fs::exists(target)
+    use teardown(d)
+    if wrote { return false }
+    return !exists
+}
+
+@[test]
+pub fn a_failed_write_leaves_an_error_code: () :bool {
+    // last_error is only useful if a failed write actually sets it, which is
+    // what lets a caller tell a missing parent from a permission problem.
+    set d = setup("kioto-fsw-errcode")
+    if d == "" { return false }
+    set target = fs::path::join(d, "no-such-dir/nested.txt")
+    set wrote = fs::write(target, "hello")
+    set code = fs::last_error()
+    use teardown(d)
+    if wrote { return false }
+    return code != fs::err_ok()
+}

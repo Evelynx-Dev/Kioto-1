@@ -25,11 +25,26 @@
 // through magnitude_f64 and the public ones are only reached as
 // math::float::abs. See the note on magnitude_f64.
 
-// 2^52, the first magnitude at which every f64 is already an integer.
-cons LIMIT = 4503599627370496.0 :f64
-
-// Largest power of two below LIMIT.
-cons TOP = 2251799813685248.0 :f64
+// The two powers of two this module needs are written as literals at their use
+// sites rather than declared here as cons, and that is deliberate.
+//
+// A cons is not a dependable way to share a value inside a module. It is not
+// readable through a dotted path — neither a consumer nor a sibling can resolve
+// it, which is why math::consts ships its constants as pub fn — and
+// reachable-import selection drops a module's cons whenever a consumer
+// references only part of that module. The second one bites here directly:
+// integral_magnitude, called on its own, failed to compile with "Unknown
+// identifier 'LIMIT'" for a constant declared nine lines above it in this very
+// file. The 91-test suite passed, because the other tests referenced enough of
+// this module for the cons to survive selection.
+//
+// These two names were also declared a second time in the root tier, which
+// breaks the migration rule of one constant per module with a unique name, so
+// removing the duplicates is right on that count alone.
+//
+// 2^52, the first magnitude at which every f64 is already an integer, is the
+// integral_magnitude gate. 2^51, the largest power of two below it, is where the
+// greedy decomposition starts.
 
 // NaN, spelled as the one expression that is guaranteed to produce it.
 fn nan: () :f64 { return 0.0 / 0.0 }
@@ -48,7 +63,7 @@ pub fn integral_magnitude: (x :f64) :bool {
     if x != x {
         return false
     }
-    return magnitude_f64(x) < LIMIT
+    return magnitude_f64(x) < 4503599627370496.0
 }
 
 // Magnitude of a value. abs, floor, ceil, round, sqrt and pow are compiler
@@ -146,7 +161,7 @@ pub fn trunc: (x :f64) :f64 {
         return 0.0
     }
     set t = 0.0 :f64 mut
-    set p = TOP :f64 mut
+    set p = 2251799813685248.0 :f64 mut
     while p >= 1.0 {
         if a >= p {
             set a = a - p
@@ -230,14 +245,19 @@ pub fn round: (x :f64) :f64 {
     return t
 }
 
+// Not a number. True for the only value that is not equal to itself, which is
+// why the test is written as x != x and not as a comparison.
 pub fn isNan: (x :f64) :bool {
     return x != x
 }
 
+// Infinite, of either sign. Comparing against 1.0/0.0 works because dividing
+// by zero is the one operation IEEE 754 requires to produce an infinity.
 pub fn isInf: (x :f64) :bool {
     return x == 1.0 / 0.0 || x == -1.0 / 0.0
 }
 
+// Neither NaN nor infinite: the question worth asking before a division.
 pub fn isFinite: (x :f64) :bool {
     return !isNan(x) && !isInf(x)
 }
@@ -333,7 +353,6 @@ pub fn fromBits: (b :i64) :f64 {
 }
 
 // The machine epsilon, 2^-52: the smallest gap between 1.0 and the next
-// representable double. Spelled out in full because Mire's lexer has no
-// scientific-notation float literal, so 2.220446049250313e-16 does not parse.
-// The value matches math::consts::epsilon, which exists for the same reason.
-pub fn epsilon: () :f64 { return 0.0000000000000002220446049250313 }
+// representable double. Written in scientific notation because that is what the
+// value is; the same number as math::consts::epsilon.
+pub fn epsilon: () :f64 { return 2.220446049250313e-16 }

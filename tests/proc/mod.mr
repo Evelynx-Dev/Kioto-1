@@ -1,0 +1,78 @@
+// proc::shell — capturing output, and what the capture buffer has to survive.
+//
+// The shell is denied by default and needs an explicit unrestricted scope,
+// which tests/fs/sandbox covers as a policy question. What is tested here is
+// narrower: that whatever the shell produced arrives whole.
+
+load kioto
+
+@[test]
+pub fn shell_captures_a_short_result_exactly: () :bool {
+    // The starting point for the growth test below: a result small enough that
+    // any buffer holding it is already big enough to look fine.
+    set was = fs::unrestricted::enter()
+    set out = proc::shell("printf aaaa")
+    use fs::unrestricted::exit()
+    return strings::len(out) == 4
+}
+
+@[test]
+pub fn a_later_longer_result_is_not_truncated: () :bool {
+    // The capture buffer is reused between calls, so a buffer sized for an
+    // early result is reused for every later one. When a later result is
+    // longer than the space reserved, the copy has to grow the buffer first.
+    // If it does not, the copy runs past the end of the allocation: a heap
+    // overflow, which may or may not crash. The observable half of that bug
+    // is that the returned string comes back short.
+    //
+    // 100000 bytes is well past the 64 KiB the old fixed ceiling allowed, so
+    // this fails on the unfixed code and passes on the fixed code.
+    set was = fs::unrestricted::enter()
+    set small = proc::shell("printf aaaa")
+    if strings::len(small) != 4 {
+        use fs::unrestricted::exit()
+        return false
+    }
+    set big = proc::shell("head -c 100000 /dev/zero | tr '\\0' 'x'")
+    use fs::unrestricted::exit()
+    return strings::len(big) == 100000
+}
+
+@[test]
+pub fn growth_repeats_without_shrinking_the_buffer: () :bool {
+    // Big, small, big again. The small result in the middle must not leave the
+    // buffer reporting the small size, and the second big result must still be
+    // whole, which is what reusing one buffer across calls has to get right.
+    set was = fs::unrestricted::enter()
+    set first = proc::shell("head -c 100000 /dev/zero | tr '\\0' 'y'")
+    if strings::len(first) != 100000 {
+        use fs::unrestricted::exit()
+        return false
+    }
+    set small = proc::shell("printf bb")
+    if strings::len(small) != 2 {
+        use fs::unrestricted::exit()
+        return false
+    }
+    set second = proc::shell("head -c 100000 /dev/zero | tr '\\0' 'z'")
+    set second_len = strings::len(second)
+    set second_head = strings::starts::with(second, "zzz")
+    use fs::unrestricted::exit()
+    if second_len != 100000 { return false }
+    // And the bytes are the ones asked for, not filler from a stale copy.
+    return second_head
+}
+
+@[test]
+pub fn shell_status_reports_the_real_exit_code: () :bool {
+    // The output of a shell command says nothing about whether it succeeded,
+    // so the status is the only trustworthy signal. A failing command can
+    // still produce output, which is the case that catches a status that was
+    // never wired to the real waitpid result.
+    set was = fs::unrestricted::enter()
+    set out = proc::shell("printf partial; exit 3")
+    set st = proc::shell_status()
+    use fs::unrestricted::exit()
+    if strings::len(out) != 7 { return false }
+    return st == 3
+}

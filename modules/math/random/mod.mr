@@ -27,11 +27,17 @@
 
 load mire::vec
 
-// Modulus of the state words, 2^31.
-cons WORD = 2147483648 :i64
-
-// Mask keeping a value inside [0, 2^31).
-cons MASK = 2147483647 :i64
+// Every word of state lives in [0, 2^31), so two values show up all over the
+// arithmetic below and are written as literals rather than declared as cons:
+// 2^31 = 2147483648, the modulus of the state words, and 2^31 - 1 = 2147483647,
+// the mask that keeps a value inside [0, 2^31).
+//
+// That is not laziness, it is the same constraint that made math::float inline
+// its powers of two. A cons is not readable through a dotted path, and
+// reachable-import selection drops a module's cons whenever a consumer
+// references only part of that module, so a symbol called on its own could not
+// see a constant declared in its own file. See the note at the top of
+// modules/math/float/mod.mr.
 
 // The four words of xorshift128 state. Zero is the one state this generator
 // cannot escape, so seed() refuses it and the default is a non-zero constant.
@@ -47,7 +53,7 @@ set st3 = 88675123 :i64 mut
 // and the all-zero state is its single fixed point, so seeding with 0 would
 // emit nothing but zeroes for the rest of the process.
 pub fn seed: (s :i64) {
-    set v = s % WORD :i64 mut
+    set v = s % 2147483648 :i64 mut
     if v < 0 {
         set v = 0 - v
     }
@@ -66,20 +72,20 @@ pub fn seed: (s :i64) {
 // the value inside [0, 2^31). The multiply peaks at 2^31 * 2^25 = 2^56, well
 // inside i64.
 fn mix: (v :i64) :i64 {
-    set x = v & MASK :i64 mut
-    set x = ((x * 1103515245) + 12345) & MASK
+    set x = v & 2147483647 :i64 mut
+    set x = ((x * 1103515245) + 12345) & 2147483647
     set x = x ^ (x >> 13)
-    return x & MASK
+    return x & 2147483647
 }
 
 // Next 31-bit word, in [0, 2^31).
 pub fn next: () :i64 {
-    set t = (st0 ^ ((st0 << 11) & MASK)) & MASK
+    set t = (st0 ^ ((st0 << 11) & 2147483647)) & 2147483647
     set st0 = st1
     set st1 = st2
     set st2 = st3
     set w = ((st3 ^ (st3 >> 19)) ^ (t ^ (t >> 8))) :i64 mut
-    set w = w & MASK
+    set w = w & 2147483647
     set st3 = w
     return w
 }
@@ -90,7 +96,7 @@ pub fn next: () :i64 {
 fn wide: () :i64 {
     set hi = next() :i64 mut
     set lo = next()
-    return (hi * WORD) + lo
+    return (hi * 2147483648) + lo
 }
 
 // Uniform value in [0, bound). 0 when bound <= 0, so the degenerate bound does
@@ -109,8 +115,8 @@ pub fn nextInt: (bound :i64) :i64 {
     if bound <= 0 {
         return 0
     }
-    if bound <= WORD {
-        set limit = (WORD / bound) * bound :i64 mut
+    if bound <= 2147483648 {
+        set limit = (2147483648 / bound) * bound :i64 mut
         if limit <= 0 {
             return 0
         }

@@ -3,10 +3,12 @@ load kioto::crypto::hash::_externs
 load kioto::crypto::hash::sha256
 load kioto::crypto::hash::sha512
 
+// SHA-256 of a message, lowercase hex.
 pub fn sha256: (msg :&str) :str {
     return sha256::hash(msg)
 }
 
+// SHA-512 of a message, lowercase hex.
 pub fn sha512: (msg :&str) :str {
     return sha512::hash(msg)
 }
@@ -17,6 +19,8 @@ pub fn sha256_file: (path :&str) :str {
     return rt_crypto_sha256_file_hex(path)
 }
 
+// SHA-512 of a file's bytes, lowercase hex. Reads the whole file, so the
+// cost is the file size.
 pub fn sha512_file: (path :&str) :str {
     return rt_crypto_sha512_file_hex(path)
 }

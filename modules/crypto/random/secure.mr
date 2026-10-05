@@ -5,6 +5,14 @@ load mire::vec
 
 extern fn pal_random_fill: (buf :&mut str, len :i64) :bool lib "c"
 
+// n cryptographically secure random bytes, as a vector of 0 to 255. This
+// is the one random source to reach for when the output has to be
+// unpredictable: math::random is seeded and reproducible by design.
+//
+// An empty vector means the source failed. It never means zero bytes were
+// asked for, and the functions below read the length they actually got
+// rather than the length they requested, so a failed read cannot come back
+// as a run of zeros.
 pub fn bytes: (n :i64) :vec[i64] {
     set buf = strings::repeat("\0" n) :str mut
     set ok = pal_random_fill(buf, n)
@@ -19,8 +27,15 @@ pub fn bytes: (n :i64) :vec[i64] {
     return result
 }
 
+// size random bytes rendered as a hex string, which is the shape a seed or
+// a key file usually wants.
+//
+// An empty string means the source failed. The result is otherwise exactly
+// twice size characters, so a caller can tell a real seed from a failure by
+// its length alone.
 pub fn seed: (size :i64) :str {
     set raw = bytes(size)
+    if vec::len(raw) != size { return "" }
     set result = "" :str mut
     set hex_tbl = "0123456789abcdef"
     set i = 0 :i64 mut
@@ -32,11 +47,19 @@ pub fn seed: (size :i64) :str {
     return result
 }
 
+// A random 64-bit integer. Note the asymmetry with math::random::nextInt,
+// which is bounded and reproducible.
+//
+// Zero is a legitimate random value and is also what a failed read produces
+// here, so the two are not told apart by this signature. A caller about to
+// use the result as key material, where a silent zero would be a real
+// weakness, should call bytes(8) and check the length instead.
 pub fn i64: () :i64 {
     set raw = bytes(8)
     set result = 0 :i64 mut
     set i = 0 :i64 mut
-    while i < 8 {
+    set n = vec::len(raw) :i64 mut
+    while i < n {
         set b = vec::get::i64(raw, i) & 0xFF
         set result = (result << 8) | b
         set i += 1

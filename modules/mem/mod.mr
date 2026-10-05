@@ -4,6 +4,10 @@ extern fn pal_mem_total: () :i64 lib "c"
 extern fn pal_mem_available: () :i64 lib "c"
 extern fn pal_mem_process: () :i64 lib "c"
 
+// Physical memory installed on the machine, in bytes.
 pub fn total: () :i64 { return pal_mem_total() }
+// Memory the kernel will hand out without swapping, in bytes.
 pub fn available: () :i64 { return pal_mem_available() }
+// Resident set size of this process, in bytes. Not a cap: the allocation
+// that grows this number is whatever your code asked for.
 pub fn process: () :i64 { return pal_mem_process() }

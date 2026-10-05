@@ -49,6 +49,7 @@ pub fn sign: (n :i64) :i64 {
     return 0
 }
 
+// The smaller of two integers.
 pub fn min: (a :i64, b :i64) :i64 {
     if a < b {
         return a
@@ -56,6 +57,7 @@ pub fn min: (a :i64, b :i64) :i64 {
     return b
 }
 
+// The larger of two integers.
 pub fn max: (a :i64, b :i64) :i64 {
     if a > b {
         return a

@@ -23,6 +23,22 @@ extern fn pal_fs_chmod: (path :&str, mode :&str) :bool lib "c"
 extern fn pal_root_remove: (root :i64, path :&str) :bool lib "c"
 extern fn pal_last_error: () :i64 lib "c"
 
+// ── Sandbox policy ──
+// The gate lives in the PAL, not here, so a program that declares its own
+// extern to the same symbols hits the same check. See pal/core/pal_sandbox.c.
+// The scalar entry points are called on the PAL directly. The three that
+// return :str go through rt_ bridges, because the compiler treats a
+// pal_-prefixed str return as an owned malloc'd buffer and would free these
+// borrowed pointers. See helpers.c for the full explanation.
+extern fn pal_sbx_set_root: (root :&str) lib "c"
+extern fn rt_sbx_get_root: () :str lib "c"
+extern fn pal_sbx_set_unsafe: (depth :i64) :bool lib "c"
+extern fn pal_sbx_unsafe_depth: () :i64 lib "c"
+extern fn pal_sbx_permit: (path :&str) :bool lib "c"
+extern fn pal_sbx_reason: () :i64 lib "c"
+extern fn rt_sbx_reason_text: () :str lib "c"
+extern fn rt_sbx_detail: () :str lib "c"
+
 extern fn rt_fs_read_bytes: (path :&str) :str lib "c"
 extern fn rt_vecs_push_ptr: (list :vec[str], value :str) :vec[str] lib "c"
 extern fn rt_strings_char_at: (s :&str, i :i64) :i64 lib "c"

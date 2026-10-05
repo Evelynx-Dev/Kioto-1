@@ -3,4 +3,5 @@ name = "strings"
 entry = "mod.mr"
 
 [exports]
+mod = "mod.mr"
 _externs = "_externs.mr"

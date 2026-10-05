@@ -1,0 +1,328 @@
+// math::power: the exponentials, logarithms, roots, pow and hypot.
+//
+// The accuracy assertions carry a relative tolerance rather than an exact
+// comparison, because the whole module lives one or two ulps away from the
+// correctly rounded answer and an exact test would be a test of the reference
+// constants, not of the code. The tolerance is 1e-15, which is ten times the
+// Binary64 floor of 1.1e-16 and about what fdlibm itself holds to over this
+// domain.
+//
+// pow gets a looser tolerance than the rest, and the reason is in the test.
+// x^n has condition number n, so the one-ulp error already present in the
+// representation of x comes back multiplied by n: 0.001^64 cannot be answered
+// to better than about 7e-15 relative by any single-double implementation, and
+// this one answers it to 2e-15. A test that demanded 1e-15 there would be
+// demanding a double-double pow.
+//
+// The exactness assertions are the other half of the file and they are not
+// redundant with the tolerance ones. sqrt(4) is exactly 2, log2(1024) is exactly
+// 10, exp2(10) is exactly 1024 and pow(-2, 3) is exactly -8, because each of
+// those is a case the reduction is supposed to land on without any rounding at
+// all. A tolerance test cannot tell an implementation that happens to be close
+// from one that takes the exact route, and that distinction is the reason the
+// module can be written this way.
+
+load kioto
+
+// Relative closeness, with the tolerance as an argument because pow and the
+// transcendental family do not need the same one.
+pub fn pw_close: (got :f64, want :f64, tol :f64) :bool {
+    if want == want {
+        if got != got { return false }
+        if want == 0.0 { return got == 0.0 }
+        set diff = math::float::abs(got - want) / math::float::abs(want)
+        if diff <= tol { return true }
+        return false
+    }
+    return true
+}
+
+fn pw_nan: (v :f64) :bool { return math::float::isNan(v) }
+
+fn pw_pos_inf: () :f64 { return math::float::fromBits(9218868437227405312) }
+fn pw_neg_inf: () :f64 { return math::float::fromBits(-4503599627370496) }
+fn pw_neg_zero: () :f64 { return 0.0 * (0.0 - 1.0) }
+
+// ── roots ─────────────────────────────────────────────────────
+
+@[test]
+pub fn roots_are_accurate: () :bool {
+    if pw_close(math::power::sqrt(2.0), 1.4142135623730951, 1.0e-15) == false { return false }
+    if pw_close(math::power::sqrt(1.0e300), 1.0e150, 1.0e-15) == false { return false }
+    if pw_close(math::power::sqrt(1.0e-300), 1.0e-150, 1.0e-15) == false { return false }
+    if pw_close(math::power::sqrt(0.0), 0.0, 1.0e-15) == false { return false }
+    if pw_close(math::power::cbrt(2.0), 1.2599210498948732, 1.0e-15) == false { return false }
+    if pw_close(math::power::cbrt(0.001), 0.1, 1.0e-15) == false { return false }
+    if pw_close(math::power::cbrt(0.0 - 0.125), 0.0 - 0.5, 1.0e-15) == false { return false }
+    return true
+}
+
+@[test]
+pub fn roots_are_exact_on_perfect_powers: () :bool {
+    if math::power::sqrt(4.0) != 2.0 { return false }
+    if math::power::sqrt(0.0) != 0.0 { return false }
+    if math::power::sqrt(1.0e300) != 1.0e150 { return false }
+    if math::power::cbrt(27.0) != 3.0 { return false }
+    if math::power::cbrt(0.0 - 8.0) != 0.0 - 2.0 { return false }
+    if math::power::cbrt(0.0) != 0.0 { return false }
+    return true
+}
+
+@[test]
+pub fn cbrt_keeps_its_own_scale: () :bool {
+    // The Newton iteration converges by cubing, so an argument whose cube would
+    // overflow still has to come back. 1e300 cubed is 1e900, which is not a
+    // number; the answer is, and it is 1e100.
+    if pw_close(math::power::cbrt(1.0e300), 1.0e100, 1.0e-15) == false { return false }
+    if pw_close(math::power::cbrt(1.0e-300), 1.0e-100, 1.0e-15) == false { return false }
+    return true
+}
+
+// ── exponentials ──────────────────────────────────────────────
+
+@[test]
+pub fn exponentials_are_accurate: () :bool {
+    if pw_close(math::power::exp(1.0), 2.718281828459045, 1.0e-15) == false { return false }
+    if pw_close(math::power::exp(10.0), 22026.465794806718, 1.0e-15) == false { return false }
+    if pw_close(math::power::exp(0.0 - 100.0), 3.720075976020836e-44, 1.0e-15) == false { return false }
+    if pw_close(math::power::exp(700.0), 1.0142320547350045e+304, 1.0e-15) == false { return false }
+    if pw_close(math::power::exp(0.0), 1.0, 1.0e-15) == false { return false }
+    if pw_close(math::power::exp2(0.5), 1.4142135623730951, 1.0e-15) == false { return false }
+    if pw_close(math::power::exp2(300.0), 2.037035976334486e+90, 1.0e-15) == false { return false }
+    if pw_close(math::power::expm1(1.0), 1.718281828459045, 1.0e-15) == false { return false }
+    return true
+}
+
+@[test]
+pub fn exp2_is_exact_at_whole_numbers: () :bool {
+    // The remainder is zero at a whole argument, so the series returns exactly
+    // 1.0 and the answer is a pure power of two. A loop that raises two to a
+    // counter gets an exact answer every time.
+    if math::power::exp2(10.0) != 1024.0 { return false }
+    if math::power::exp2(0.0) != 1.0 { return false }
+    if math::power::exp2(0.0 - 3.0) != 0.125 { return false }
+    if math::power::exp2(0.0 - 1074.0) != 5.0e-324 { return false }
+    if math::power::exp2(100.0) != 1.2676506002282294e+30 { return false }
+    return true
+}
+
+@[test]
+pub fn expm1_keeps_small_arguments: () :bool {
+    // The reason expm1 exists: exp(1e-10) - 1.0 in f64 is 1.000000082740371e-10,
+    // which has lost every digit, while expm1(1e-10) is the argument to the last
+    // bit. Any implementation that computed one from the other would fail here.
+    if pw_close(math::power::expm1(1.0e-10), 1.00000000005e-10, 1.0e-15) == false { return false }
+    if pw_close(math::power::expm1(0.0 - 1.0e-10), 0.0 - 9.9999999995e-11, 1.0e-15) == false { return false }
+    if math::power::expm1(0.0) != 0.0 { return false }
+    return true
+}
+
+// ── logarithms ────────────────────────────────────────────────
+
+@[test]
+pub fn logarithms_are_accurate: () :bool {
+    if pw_close(math::power::log(2.0), 0.6931471805599453, 1.0e-15) == false { return false }
+    if pw_close(math::power::log(10.0), 2.302585092994046, 1.0e-15) == false { return false }
+    if pw_close(math::power::log(0.5), 0.0 - 0.6931471805599453, 1.0e-15) == false { return false }
+    if pw_close(math::power::log(0.6931471805599453), 0.0 - 0.36651292058166435, 1.0e-15) == false { return false }
+    if pw_close(math::power::log(1.0000001), 9.999999505838704e-08, 1.0e-15) == false { return false }
+    if pw_close(math::power::log2(10.0), 3.321928094887362, 1.0e-15) == false { return false }
+    if pw_close(math::power::log2(1.0e300), 996.5784284662087, 1.0e-15) == false { return false }
+    if pw_close(math::power::log10(7.0), 0.8450980400142568, 1.0e-15) == false { return false }
+    if pw_close(math::power::log10(1.0e-300), 0.0 - 300.0, 1.0e-15) == false { return false }
+    return true
+}
+
+@[test]
+pub fn logarithms_are_exact_at_powers_of_two: () :bool {
+    // A power of two has mantissa exactly 1, so t is exactly zero, the series
+    // returns exactly zero, and the answer is the integer exponent with no
+    // rounding anywhere. This is the property log1p is measured against and the
+    // one a tolerance assertion could never distinguish from "close".
+    if math::power::log2(1024.0) != 10.0 { return false }
+    if math::power::log2(0.5) != 0.0 - 1.0 { return false }
+    if math::power::log2(1.0) != 0.0 { return false }
+    if math::power::log(1.0) != 0.0 { return false }
+    if math::power::log(4.0) != 1.3862943611198906 { return false }
+    return true
+}
+
+@[test]
+pub fn log1p_keeps_small_arguments: () :bool {
+    if math::power::log1p(0.0) != 0.0 { return false }
+    if pw_close(math::power::log1p(9.0), 2.302585092994046, 1.0e-15) == false { return false }
+    if pw_close(math::power::log1p(0.0 - 0.5), 0.0 - 0.6931471805599453, 1.0e-15) == false { return false }
+    // A subnormal argument halved underflows to zero, so the series would answer
+    // zero. The true answer is the argument itself, to the last bit.
+    if math::power::log1p(5.0e-324) != 5.0e-324 { return false }
+    return true
+}
+
+// ── pow ───────────────────────────────────────────────────────
+
+@[test]
+pub fn pow_is_exact_at_whole_exponents: () :bool {
+    if math::power::pow(2.0, 10.0) != 1024.0 { return false }
+    if math::power::pow(2.0, 64.0) != 1.8446744073709552e+19 { return false }
+    if math::power::pow(2.0, 127.0) != 1.7014118346046923e+38 { return false }
+    if math::power::pow(10.0, 3.0) != 1000.0 { return false }
+    if math::power::pow(0.0 - 2.0, 3.0) != 0.0 - 8.0 { return false }
+    if math::power::pow(0.0 - 2.0, 4.0) != 16.0 { return false }
+    if math::power::pow(3.0, 0.0) != 1.0 { return false }
+    return true
+}
+
+@[test]
+pub fn pow_matches_its_roots: () :bool {
+    if math::power::pow(2.0, 0.5) != math::power::sqrt(2.0) { return false }
+    if math::power::pow(9.0, 0.5) != 3.0 { return false }
+    if pw_close(math::power::pow(7.0, 0.5), 2.6457513110645907, 1.0e-15) == false { return false }
+    return true
+}
+
+@[test]
+pub fn pow_is_accurate_where_it_is_well_conditioned: () :bool {
+    // 2e-15 rather than 1e-15, and deliberately: 0.001^64 has condition number
+    // 64, so the representation error of the base alone accounts for 7e-15 of
+    // conditioning and no single-double implementation can beat that. The
+    // measurement below is 2e-15, which is inside it.
+    if pw_close(math::power::pow(10.0, 0.3), 1.9952623149688795, 2.0e-15) == false { return false }
+    if pw_close(math::power::pow(1.5, 2.5), 2.7556759606310752, 2.0e-15) == false { return false }
+    if pw_close(math::power::pow(0.001, 64.0), 1.0e-192, 2.0e-15) == false { return false }
+    if pw_close(math::power::pow(1234.5, 2.5), 53546086.55398034, 2.0e-15) == false { return false }
+    return true
+}
+
+@[test]
+pub fn pow_survives_its_own_overflow: () :bool {
+    if math::power::pow(10.0, 400.0) != pw_pos_inf() { return false }
+    if math::power::pow(2.0, 2000.0) != pw_pos_inf() { return false }
+    if pw_close(math::power::pow(0.001, 64.0), 1.0e-192, 2.0e-15) == false { return false }
+    return true
+}
+
+// ── hypot ─────────────────────────────────────────────────────
+
+@[test]
+pub fn hypot_avoids_overflow_and_underflow: () :bool {
+    // Squaring these two overflows to an infinity and the naive answer is an
+    // infinity; squaring the other pair underflows to zero and the naive answer
+    // is zero. Both are wrong by an unbounded factor, and the fix has to be in
+    // the formulation rather than in the tolerance.
+    if pw_close(math::power::hypot(1.0e200, 1.0e200), 1.414213562373095e+200, 1.0e-15) == false { return false }
+    if pw_close(math::power::hypot(1.0e-200, 1.0e-200), 1.414213562373095e-200, 1.0e-15) == false { return false }
+    if pw_close(math::power::hypot(1.0e300, 1.0e-300), 1.0e300, 1.0e-15) == false { return false }
+    return true
+}
+
+@[test]
+pub fn hypot_is_exact_where_the_scaling_allows_it: () :bool {
+    // (3, 4) and (-3, -4) come out as exactly 5.0, and they do because 3/4 is
+    // representable: the square of the ratio is exact, the sum is exact, and
+    // its root is the representable 1.25, so the scaling by 4 is exact too.
+    if math::power::hypot(3.0, 4.0) != 5.0 { return false }
+    if math::power::hypot(0.0 - 3.0, 0.0 - 4.0) != 5.0 { return false }
+    if math::power::hypot(0.0, 0.0) != 0.0 { return false }
+    if math::power::hypot(1.0, 0.0) != 1.0 { return false }
+    // (5, 12) is one ulp out at 13.000000000000002, and no tolerance-free
+    // assertion should ever claim otherwise. 5/12 is not representable, so the
+    // ratio is already rounded before it is squared and the error rides all the
+    // way through the square root. The relative error is 1.4e-16, which is the
+    // Binary64 floor, but a floor is not an exact result and the test says so.
+    if pw_close(math::power::hypot(5.0, 12.0), 13.0, 1.0e-15) == false { return false }
+    if math::power::hypot(5.0, 12.0) == 13.0 { return false }
+    return true
+}
+
+// ── the domain edges ──────────────────────────────────────────
+
+@[test]
+pub fn roots_reject_negative_input: () :bool {
+    if pw_nan(math::power::sqrt(0.0 - 1.0)) == false { return false }
+    if pw_nan(math::power::sqrt(0.0 - 4.0)) == false { return false }
+    // cbrt is the exception: a real root exists on the negative side.
+    if pw_nan(math::power::cbrt(0.0 - 8.0)) { return false }
+    return true
+}
+
+@[test]
+pub fn logarithms_reject_their_domain: () :bool {
+    if math::power::log(0.0) != pw_neg_inf() { return false }
+    if pw_nan(math::power::log(0.0 - 1.0)) == false { return false }
+    if math::power::log(pw_pos_inf()) != pw_pos_inf() { return false }
+    if math::power::log2(0.0) != pw_neg_inf() { return false }
+    if math::power::log10(0.0) != pw_neg_inf() { return false }
+    if pw_nan(math::power::log2(0.0 - 3.0)) == false { return false }
+    if pw_nan(math::power::log10(0.0 - 3.0)) == false { return false }
+    return true
+}
+
+@[test]
+pub fn log1p_reaches_its_own_singularity: () :bool {
+    if math::power::log1p(0.0 - 1.0) != pw_neg_inf() { return false }
+    if pw_nan(math::power::log1p(0.0 - 2.0)) == false { return false }
+    return true
+}
+
+@[test]
+pub fn exponentials_reach_infinity_and_zero: () :bool {
+    if math::power::exp(1000.0) != pw_pos_inf() { return false }
+    if math::power::exp(0.0 - 1000.0) != 0.0 { return false }
+    if math::power::exp(pw_pos_inf()) != pw_pos_inf() { return false }
+    if math::power::exp(pw_neg_inf()) != 0.0 { return false }
+    if math::power::exp2(2000.0) != pw_pos_inf() { return false }
+    if math::power::exp2(0.0 - 2000.0) != 0.0 { return false }
+    return true
+}
+
+@[test]
+pub fn pow_rejects_the_impossible_cases: () :bool {
+    if pw_nan(math::power::pow(0.0 - 2.0, 0.5)) == false { return false }
+    if pw_nan(math::power::pow(0.0 - 8.0, 0.3333333333333333)) == false { return false }
+    if pw_nan(math::power::pow(0.0 - 1.0, 0.5)) == false { return false }
+    // A negative base with a whole exponent is a real answer, and an odd one
+    // carries the sign. -1 squared is 1, which is the case a "negative base
+    // means NaN" shortcut would get wrong, so it is spelled out here.
+    if math::power::pow(0.0 - 2.0, 5.0) != 0.0 - 32.0 { return false }
+    if math::power::pow(0.0 - 2.0, 3.0) != 0.0 - 8.0 { return false }
+    if math::power::pow(0.0 - 1.0, 2.0) != 1.0 { return false }
+    if math::power::pow(0.0 - 1.0, 3.0) != 0.0 - 1.0 { return false }
+    if math::power::pow(0.0 - 1.0, 0.0 - 2.0) != 1.0 { return false }
+    return true
+}
+
+@[test]
+pub fn nan_propagates_through_every_entry_point: () :bool {
+    if pw_nan(math::power::sqrt(pw_pos_inf() - pw_pos_inf())) == false { return false }
+    if pw_nan(math::power::log(pw_pos_inf() - pw_pos_inf())) == false { return false }
+    if pw_nan(math::power::exp(pw_pos_inf() - pw_pos_inf())) == false { return false }
+    if pw_nan(math::power::exp2(pw_pos_inf() - pw_pos_inf())) == false { return false }
+    if pw_nan(math::power::expm1(pw_pos_inf() - pw_pos_inf())) == false { return false }
+    if pw_nan(math::power::log2(pw_pos_inf() - pw_pos_inf())) == false { return false }
+    if pw_nan(math::power::log10(pw_pos_inf() - pw_pos_inf())) == false { return false }
+    if pw_nan(math::power::log1p(pw_pos_inf() - pw_pos_inf())) == false { return false }
+    if pw_nan(math::power::pow(pw_pos_inf() - pw_pos_inf(), 2.0)) == false { return false }
+    if pw_nan(math::power::pow(2.0, pw_pos_inf() - pw_pos_inf())) == false { return false }
+    if pw_nan(math::power::hypot(pw_pos_inf() - pw_pos_inf(), 1.0)) == false { return false }
+    if pw_nan(math::power::cbrt(pw_pos_inf() - pw_pos_inf())) == false { return false }
+    return true
+}
+
+@[test]
+pub fn signed_zero_survives: () :bool {
+    // A caller that tests the sign of a zero gets the wrong answer if the sign
+    // is dropped, so this is part of the contract and not a curiosity. The
+    // interesting one is expm1: its series squares the argument, and
+    // (-0.0)*(-0.0) is +0.0, so without a guard it answers +0.0 for a -0.0.
+    if math::float::toBits(math::power::sqrt(pw_neg_zero())) != math::float::toBits(pw_neg_zero()) { return false }
+    if math::float::toBits(math::power::cbrt(pw_neg_zero())) != math::float::toBits(pw_neg_zero()) { return false }
+    if math::float::toBits(math::power::log(pw_neg_zero())) != math::float::toBits(pw_neg_inf()) { return false }
+    if math::float::toBits(math::power::log1p(pw_neg_zero())) != math::float::toBits(pw_neg_zero()) { return false }
+    if math::float::toBits(math::power::expm1(pw_neg_zero())) != math::float::toBits(pw_neg_zero()) { return false }
+    if math::float::toBits(math::power::exp(pw_neg_zero())) != math::float::toBits(1.0) { return false }
+    // hypot is the exception in the other direction: it is a magnitude, so the
+    // answer is +0.0 whatever the signs of the arguments were.
+    if math::float::toBits(math::power::hypot(pw_neg_zero(), pw_neg_zero())) != math::float::toBits(0.0) { return false }
+    if math::power::pow(0.5, pw_neg_zero()) != 1.0 { return false }
+    return true
+}

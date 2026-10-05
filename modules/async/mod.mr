@@ -1,46 +1,72 @@
 module async
 load kioto::async::_externs
 
+// A byte pipe between two places in the program. Close it with
+// async::channel::close; the descriptor does not go away on its own.
 pub struct Channel {
     handle :i64
 }
 
+// A value that is already finished. Task is the smallest honest unit of
+// deferred work in this module: it holds the result, not a promise of one.
 pub struct Task {
     value :str
 }
 
 // ── task ────────────────────────────────────────────────────────
+// Values in flight, for the case where a result is produced now and read later.
 pub fn task: () {
+    // Wraps a value as a finished task. Nothing is scheduled and nothing can
+    // fail, which is the point: the caller can stop branching on whether the
+    // work is done.
     pub fn ready: (value :str) :Task {
         return (Task value: value)
     }
 
+    // The value inside a task, or fallback when there is none. Taking a
+    // fallback rather than returning Maybe keeps the call site free of a
+    // match, at the cost of having to invent a default.
     pub fn value: (t :Task, fallback :str) :str {
         return t.value
     }
 }
 
 // ── channel ─────────────────────────────────────────────────────
+// The pipe itself, plus the one rule that catches everyone: a receive
+// buffer must already have room for the bytes you expect, or the write lands
+// past the end of it. strings::repeat("\0" n) is how you make room.
 pub fn channel: () {
+    // An open channel. Nothing flows until a process or a thread is attached
+    // to one of the ends.
     pub fn create: () :Channel {
         set h = pal_channel_create()
         return (Channel handle: h)
     }
 
+    // Writes data to the channel, returning the byte count or -1. The data is
+    // copied, so the caller's string is unaffected.
     pub fn send: (ch :&Channel, data :&str) :i64 {
         return pal_channel_send(ch.handle, data, len(data))
     }
 
+    // Reads up to cap bytes into buf and returns how many arrived, 0 at end
+    // of stream. buf must have cap bytes of room.
     pub fn recv: (ch :&Channel, buf :&mut str, cap :i64) :i64 {
         return rt_channel_recv_into(ch.handle, buf, cap)
     }
 
+    // Closes the channel. Both ends have to be closed for a reader to see the
+    // end of the stream.
     pub fn close: (ch :&Channel) {
         use pal_channel_close(ch.handle)
     }
 }
 
 // ── process ─────────────────────────────────────────────────────
+// Starts a program and returns its process id, without waiting. The command
+// is the program path and nothing else: it is not split on spaces, so
+// "ls -l" looks for a file with that exact name and the child exits 127. Use
+// proc::run::spawn when there are arguments to pass.
 pub fn spawn: (cmd :&str) :i64 {
     set argv = rt_build_argv(cmd, [] :vec[str])
     set h = pal_proc_create(argv, 0 :i32, 0, 0, 0)
@@ -48,6 +74,7 @@ pub fn spawn: (cmd :&str) :i64 {
     return h
 }
 
+// Waits for a process id from async::spawn and returns its status.
 pub fn wait: (pid :i64) :i64 {
     return pal_proc_wait(pid)
 }

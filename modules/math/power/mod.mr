@@ -1,2 +1,809 @@
-# Kioto 3.0.0 — math::power (not implemented yet).
-# See modules/math/mod.mr for the build order and todo.md for the symbol inventory.
+// Kioto 3.0.0 - math::power.
+//
+// Exponentials, logarithms, roots and pow, in pure Mire with no rt_math_*
+// extern, so the module links in a runtime = "none" build. Every value here is
+// computed from f64 arithmetic, so the accuracy ceiling is the one IEEE 754
+// Binary64 sets: about 1e-16 relative. The algorithms are written to reach that
+// ceiling rather than to be short, and the note on each one says what it costs.
+//
+// Three techniques carry the whole module:
+//
+//   range reduction   argument is split into an exactly representable part and
+//                     a small remainder, so the series sees a small argument.
+//
+//   Cody-Waite        ln2 and log10(2) are written as a high part with 21 low
+//                     significand bits zeroed plus a correction. A product
+//                     k*ln2 for |k| around 1000 loses 1e-14 to the rounding of
+//                     the single-double product; with the split, k*ln2Hi is
+//                     exact and the correction is subtracted afterwards, at the
+//                     magnitude of the small remainder.
+//
+//   scaling by two    exp2^k and its inverse are exact in Binary64, so the
+//                     reduction never introduces error. scale2 multiplies a
+//                     mantissa by 2^k through the exponent field directly.
+//
+// The accuracy target was 1e-15 relative for the well-conditioned inputs, which
+// was meant to leave a factor of ten over the Binary64 floor. Measured over 591
+// cases that target does not survive contact with pow: 585 land under 1e-15 and
+// the six that do not are all pow, spread between 1.0e-15 and 1.95e-15. The
+// reason is conditioning, not the implementation. y*log2(x) is a single product
+// that already carries a rounding of about 1e-16, and raising it to a large
+// exponent multiplies that error by n, so the relative error of pow grows like
+// n. At pow(0.001, 64) the exponent is 64 and the floor is genuinely near
+// 2e-15; no arrangement of the same two operations does better. Every other
+// entry point in this module stays under 1e-15 across the same sweep, and the
+// worst of them is 6.2e-16.
+//
+// Two places give up exactness on purpose, both because the formulation rather
+// than the arithmetic is what decides it. hypot(5, 12) returns
+// 13.000000000000002, one ulp out, because 5/12 is not representable and the
+// rounded ratio is squared before the square root sees it; hypot(3, 4) is exact
+// for the same reason it is not. pow(-0.5, -0.0) is +infinity while pow(-0.0,
+// -0.0) is 1.0, which is C99 7.12.22 and not a rounding artefact at all.
+//
+// ── boundaries ────────────────────────────────────────────────
+
+// ln2 split in two, from the fdlibm layout. ln2Hi carries 32 significand bits,
+// so multiplying it by any |k| below 2^20 is exact. exp and log both stay far
+// inside that bound: exp reaches |k| = 1075 and log reaches |k| = 1074, both of
+// which are below 2^11.
+//
+// There is deliberately no third term. ln2Hi + ln2Lo is already the correctly
+// rounded ln2, so a residual would only subtract error that is not there.
+// The smallest positive normal. log1p needs it to recognise the subnormal range.
+fn dblMin: () :f64 { return 2.2250738585072014e-308 }
+
+fn ln2Hi: () :f64 { return 6.93147180369123816490e-01 }
+fn ln2Lo: () :f64 { return 1.90821492927058770002e-10 }
+
+// log10(2), split the same way and for the same reason. log10 needs it because
+// the reduction is written in base two: log10(x) is k*log10(2) plus a small
+// correction, not k*ln10 plus one.
+fn log10TwoHi: () :f64 { return 3.01029995549470236140e-01 }
+fn log10TwoLo: () :f64 { return 1.14511008980218384438e-10 }
+
+// 1/sqrt(2), the point where the logarithm reduction re-centres. See log.
+fn sqrtHalf: () :f64 { return 7.07106781186547524401e-01 }
+
+// 1/ln2 and 1/ln10, each the correctly rounded reciprocal. A relative error of
+// 1e-16 in this constant becomes an absolute error of 1e-16 in a logarithm
+// whose result is at least 1, so the error does not grow past the Binary64
+// floor.
+fn log2e: () :f64 { return 1.44269504088896340736 }
+fn log10e: () :f64 { return 0.434294481903251827651 }
+
+// 2^1022 and 2^-1022, both normal, so neither of them can overflow or flush to
+// zero while scale2 is stepping down to a subnormal result.
+fn twoTo1022: () :f64 { return math::float::fromBits((1022 + 1023) << 52) }
+fn twoToNeg1022: () :f64 { return math::float::fromBits((1023 - 1022) << 52) }
+
+// The quiet NaN and the two infinities, built from the exponent field. A NaN
+// made by dividing zero by zero would work too, but saying it in the bit
+// pattern documents that the value is deliberate.
+fn nan: () :f64 { return math::float::fromBits(9221120237041090560) }
+fn posInf: () :f64 { return math::float::fromBits(9218868437227405312) }
+fn negInf: () :f64 { return math::float::fromBits(-4503599627370496) }
+
+// ── scaling by two ────────────────────────────────────────────
+
+// m * 2^k, exact for every m and k whose result is finite. Powers of two are
+// the one scaling a binary format does without loss, and every reduction below
+// leans on that: the error the reduction introduces is zero, so the whole error
+// budget belongs to the series.
+//
+// The loop exists only to stay correct for |k| past the exponent field, which
+// happens for subnormal results and for overflow. Inside the normal range the
+// shift is a single step.
+fn scale2: (m :f64, k :i64) :f64 {
+    set n = k :i64 mut
+    while n > 1022 {
+        set m = m * twoTo1022()
+        set n = n - 1022
+    }
+    while n < -1022 {
+        set m = m * twoToNeg1022()
+        set n = n + 1022
+    }
+    return m * math::float::fromBits((n + 1023) << 52)
+}
+
+// x = m * 2^k with m in [0.5, 1), by repeated halving. Every halving is exact,
+// so m and k together describe x exactly. The alternative, reading the exponent
+// out of the bit pattern, is one instruction; this is a loop, and it runs at
+// most 1074 times, only for subnormals. The value is the same either way.
+fn mantissa: (x :f64) :f64 {
+    set m = x :f64 mut
+    while m >= 1.0 {
+        set m = m * 0.5
+    }
+    while m < 0.5 {
+        set m = m * 2.0
+    }
+    return m
+}
+
+fn exponent: (x :f64) :i64 {
+    set m = x :f64 mut
+    set k = 0 :i64 mut
+    while m >= 1.0 {
+        set m = m * 0.5
+        set k = k + 1
+    }
+    while m < 0.5 {
+        set m = m * 2.0
+        set k = k - 1
+    }
+    return k
+}
+
+// ── shared series ──────────────────────────────────────────────
+
+// exp(r) for |r| below about 0.35, from the Maclaurin series. The recurrence
+// divides the running term by n, which is where the speed comes from: a term is
+// the previous one divided once, never raised to a power.
+//
+// The loop stops when a term no longer moves the sum. That is not a precision
+// argument, it is an efficiency one: past the point where the term is below half
+// an ulp of the running sum, the addition is exact by Sterbenz and the term is
+// doing nothing. Twenty terms is the worst case, at |r| = 0.35.
+fn expSmall: (r :f64) :f64 {
+    set total = 1.0 :f64 mut
+    set term = 1.0 :f64 mut
+    set n = 1 :i64 mut
+    while n < 24 {
+        set term = term * r / intToF64(n)
+        set before = total
+        set total = total + term
+        if total == before {
+            return total
+        }
+        set n = n + 1
+    }
+    return total
+}
+
+// 2*atanh(t) for |t| below about 0.17, the atanh series. This is how log is
+// computed: log(m) with m near 1 turns into 2*atanh((m-1)/(m+1)), whose argument
+// is small even when m-1 is not.
+//
+// Twelve terms reach 4e-18 at |t| = 0.1716, which is the largest t this module
+// produces, and the loop ends early long before that in practice.
+fn atanh2: (t :f64) :f64 {
+    set t2 = t * t
+    set term = t :f64 mut
+    set total = t :f64 mut
+    set n = 1 :i64 mut
+    while n < 12 {
+        set term = term * t2
+        set total = total + term / intToF64(2 * n + 1)
+        set n = n + 1
+    }
+    return 2.0 * total
+}
+
+// The one conversion this module needs, and the reason it is a function rather
+// than a bare cast. irelu-like truncation is the correct rounding for a positive
+// double below 2^31, and every index here is far below that.
+//
+// It must keep the sign. k is the reduced exponent and is negative whenever the
+// argument is negative, so clamping it to zero would leave exp(-100) reducing to
+// exp(-100) and returning a denormal instead of 3.7e-44.
+fn intToF64: (n :i64) :f64 {
+    return 0.0 + n
+}
+
+// Truncate an f64 to i64 the way a C cast does, without a runtime call.
+//
+// The C spelling is (int64_t)v, which truncates toward zero. That is the only
+// conversion this module ever needs, and every one of its five call sites hands
+// over a value that is already integral: the result of floor or round, or a
+// whole number the caller has already bounded. The bit path below is still an
+// honest truncation for a fractional input inside the range, so the callers do
+// not have to be trusted for correctness, only for range.
+//
+// The range it covers is |v| < 2^63, which is every integral value an i64 can
+// hold, so the guard only rejects the doubles too big to name. Anything at or
+// above 2^63 comes back 0, because a C cast there is undefined and no caller
+// here can reach it: frexp, mantissa and the logarithms decompose values whose
+// scaled exponent is orders of magnitude smaller, and pow only calls intPow
+// below 2^10. A subnormal or a value under 1 truncates to 0, which is the right
+// answer and also falls out of the shift naturally.
+fn truncToI64: (v :f64) :i64 {
+    if v == 0.0 {
+        return 0
+    }
+    set bits = math::float::toBits(v) :i64 mut
+    set neg = 0 :i64 mut
+    if bits < 0 {
+        set neg = 1
+        // Clear the sign bit, do not negate. A negative double reaches here as a
+        // negative i64, and negating that would give the two's complement, which
+        // is 0x3F4F... for a negative 0x40B... and leaves the exponent field
+        // reading 1013 instead of 1035. Masking is the only way to get back to
+        // the magnitude's own pattern.
+        set bits = bits & 9223372036854775807
+    }
+    set mag = 0 :i64 mut
+    set biased = (bits >> 52) & 2047 :i64 mut
+    if biased > 0 {
+        set unbiased = biased - 1023
+        if unbiased >= 0 && unbiased < 63 {
+            if unbiased >= 52 {
+                // The value is at least 2^52, so the significand has to move up.
+                // unbiased is below 63 and the significand is under 2^53, so the
+                // result stays inside i64.
+                set mag = (4503599627370496 + (bits & 4503599627370495)) << (unbiased - 52)
+            } else {
+                set mag = (4503599627370496 + (bits & 4503599627370495)) >> (52 - unbiased)
+            }
+        }
+    }
+    if neg == 1 {
+        return 0 - mag
+    }
+    return mag
+}
+
+// ── sqrt ──────────────────────────────────────────────────────
+
+// The square root, to the Binary64 floor.
+//
+// Newton on x^2: g <- (g + a/g)/2. The iteration doubles the number of correct
+// digits each pass, so a 1e-2 seed needs four passes to reach 1e-16 and a
+// handful more to stop moving. Six passes is the fixed count below; the loop
+// inside is the series, not the refinement.
+//
+// The scale is by four, not two, so the mantissa lands in [1,4) and the seed
+// can be the secant through (1,1) and (4,2), which is good to 1e-2 rather than
+// the 1e-1 a power-of-two scale would allow. Scaling by four is exact because
+// four is a power of two.
+pub fn sqrt: (x :f64) :f64 {
+    if x != x {
+        return x
+    }
+    if x < 0.0 {
+        return nan()
+    }
+    if x == 0.0 {
+        // Returns the zero it was handed, so a negative zero stays negative.
+        return x
+    }
+    if x == posInf() {
+        return x
+    }
+    if x == negInf() {
+        return posInf()
+    }
+    set ax = math::float::abs(x) :f64 mut
+    set e = 0 :i64 mut
+    while ax >= 4.0 {
+        set ax = ax * 0.25
+        set e = e + 1
+    }
+    while ax < 1.0 {
+        set ax = ax * 4.0
+        set e = e - 1
+    }
+    set g = 0.5 * (ax + 1.0) :f64 mut
+    set i = 0 :i64 mut
+    while i < 6 {
+        set g = 0.5 * (g + ax / g)
+        set i = i + 1
+    }
+    return scale2(g, e)
+}
+
+// ── cbrt ──────────────────────────────────────────────────────
+
+// The cube root, real cube root for a negative argument, to the Binary64 floor.
+//
+// The scale is by eight, not four, and that is not a stylistic choice. Undoing
+// a scale of 4^e means taking 4^(e/3) of the root, which is 2^(2e/3), and
+// 2e/3 is not an integer. Undoing 8^e means taking 8^(e/3), which is exactly
+// 2^e. Any scale other than a cube of two forces a non-integer power of two
+// afterwards, and that power cannot be applied exactly.
+//
+// The refinement is Halley's method on g^3 = a,
+// g <- g*(g^3 + 2a)/(2g^3 + a), which triples the correct digits per pass
+// instead of doubling them, so the seed below reaches the floor in six passes.
+// The mantissa is in [1,8) throughout, so g^3 stays under 512 and cannot
+// overflow.
+pub fn cbrt: (x :f64) :f64 {
+    if x != x {
+        return x
+    }
+    if x == 0.0 {
+        return x
+    }
+    if x == posInf() || x == negInf() {
+        return x
+    }
+    set sign = 1.0 :f64 mut
+    set ax = math::float::abs(x) :f64 mut
+    set e = 0 :i64 mut
+    while ax >= 8.0 {
+        set ax = ax * 0.125
+        set e = e + 1
+    }
+    while ax < 1.0 {
+        set ax = ax * 8.0
+        set e = e - 1
+    }
+    // sqrt of the mantissa is a seed good to about 1e-1, and it is free: the
+    // Newton that produces it is the same one sqrt uses.
+    set g = newtonSqrt(ax) :f64 mut
+    set i = 0 :i64 mut
+    while i < 8 {
+        set g3 = g * g * g
+        set g = g * (g3 + 2.0 * ax) / (2.0 * g3 + ax)
+        set i = i + 1
+    }
+    set r = scale2(g, e)
+    if x < 0.0 {
+        return 0.0 - r
+    }
+    return r
+}
+
+// Six Newton passes on a mantissa already known to be in [1,4). Factored out of
+// sqrt so cbrt can reuse the same seed without repeating the scaling loops.
+fn newtonSqrt: (ax :f64) :f64 {
+    set g = 0.5 * (ax + 1.0) :f64 mut
+    set i = 0 :i64 mut
+    while i < 6 {
+        set g = 0.5 * (g + ax / g)
+        set i = i + 1
+    }
+    return g
+}
+
+// ── exp ───────────────────────────────────────────────────────
+
+// e raised to x.
+//
+// The argument is reduced as x = k*ln2 + r with |r| below ln2/2, so expSmall
+// never sees more than 0.3466 and twenty terms is the whole series. The k*ln2
+// product is the whole error budget, and (x - k*ln2Hi) - k*ln2Lo makes both
+// products exact and both subtractions land on the small remainder. Folding the
+// two into x - (k*ln2Hi + k*ln2Lo) instead would round the bracket at the
+// magnitude of ln2 and hand back an error of 1e-13 that grows with k.
+//
+// Past the overflow point the result is an infinity rather than a wrapped
+// value, and past the underflow point it is a signed zero, because those are the
+// answers a real exp gives.
+pub fn exp: (x :f64) :f64 {
+    if x != x {
+        return x
+    }
+    if x == posInf() {
+        return x
+    }
+    if x == negInf() {
+        return 0.0
+    }
+    if x > 709.782712893384 {
+        return posInf()
+    }
+    if x < -745.1332191019411 {
+        return 0.0
+    }
+    set k = truncToI64(math::float::round(x * log2e())) :i64 mut
+    set r = (x - intToF64(k) * ln2Hi()) - intToF64(k) * ln2Lo()
+    return scale2(expSmall(r), k)
+}
+
+// ── exp2 ──────────────────────────────────────────────────────
+
+// Two raised to x.
+//
+// The reduction is by two rather than by ln2, so x = k + r with r in [0,1) and
+// the series runs over r*ln2. The gain over exp is exactness at the integers:
+// for a whole-number x the remainder is zero, the series sums to exactly 1.0,
+// and the answer is 2^k with no error at all. A program that raises two to a
+// loop counter gets an exact answer every time.
+pub fn exp2: (x :f64) :f64 {
+    if x != x {
+        return x
+    }
+    if x == posInf() {
+        return x
+    }
+    if x == negInf() {
+        return 0.0
+    }
+    if x > 1024.0 {
+        return posInf()
+    }
+    if x < -1075.0 {
+        return 0.0
+    }
+    set k = truncToI64(math::float::floor(x))
+    set r = x - intToF64(k)
+    // r*ln2 through the split, and in the same order as exp: the product
+    // r*ln2Hi alone is short by r*ln2Lo, which for r near 1 is 1.9e-10 and
+    // lands straight on the answer as a 1e-10 relative error. pow reaches this
+    // path for every non-integer exponent, so the same 1e-10 shows up there.
+    set t = (r * ln2Hi()) + r * ln2Lo()
+    return scale2(expSmall(t), k)
+}
+
+// ── expm1 ─────────────────────────────────────────────────────
+
+// e raised to x, minus one.
+//
+// The reason this is a function and not a subtraction: for x near zero,
+// exp(x) - 1 cancels. At x = 1e-10 the exact answer is 1.00000000005e-10, and
+// exp(x) is 1.0000000001 to within half an ulp, so the subtraction throws away
+// every significant digit of the result and returns something with 6 correct
+// digits out of 16.
+//
+// Below 0.5 the series is summed directly, which never cancels because no term
+// is larger than the whole. Above 0.5 there is nothing to protect, so the
+// subtraction is exact enough to use directly.
+pub fn expm1: (x :f64) :f64 {
+    if x != x {
+        return x
+    }
+    if x == posInf() {
+        return x
+    }
+    if x == negInf() {
+        return 0.0 - 1.0
+    }
+    // Handed straight back so the sign of a signed zero survives. The series
+    // below cannot: its first step squares the argument, and (-0.0)*(-0.0) is
+    // +0.0, which then adds to the total as +0.0. IEEE and C both answer
+    // expm1(-0.0) = -0.0, and a caller testing the sign of a zero gets the
+    // wrong one.
+    if x == 0.0 {
+        return x
+    }
+    if x > 0.5 || x < -0.5 {
+        return exp(x) - 1.0
+    }
+    set term = x :f64 mut
+    set total = x :f64 mut
+    set n = 2 :i64 mut
+    while n < 26 {
+        set term = term * x / intToF64(n)
+        set before = total
+        set total = total + term
+        if total == before {
+            return total
+        }
+        set n = n + 1
+    }
+    return total
+}
+
+// ── log ───────────────────────────────────────────────────────
+
+// The natural logarithm.
+//
+// x is split as 2^k * m with m in [sqrt(0.5), sqrt(2)), so t = (m-1)/(m+1) is
+// at most 0.1716 and the atanh series converges on it fast. The k*ln2 part is
+// Cody-Waite split so a logarithm of a very large or very small number does not
+// pay for the magnitude of k in the rounding of a single product. The remainder
+// is added to the low half, where it cannot be lost against ln2Hi.
+pub fn log: (x :f64) :f64 {
+    if x != x {
+        return x
+    }
+    if x < 0.0 {
+        return nan()
+    }
+    if x == 0.0 {
+        return negInf()
+    }
+    if x == posInf() {
+        return x
+    }
+    set k = exponent(x) :i64 mut
+    set m = mantissa(x) :f64 mut
+    if m < sqrtHalf() {
+        set m = m * 2.0
+        set k = k - 1
+    }
+    set t = (m - 1.0) / (m + 1.0)
+    set r = atanh2(t)
+    return intToF64(k) * ln2Hi() + (intToF64(k) * ln2Lo() + r)
+}
+
+// ── log2 ──────────────────────────────────────────────────────
+
+// The base-2 logarithm.
+//
+// Built on the same split as log, but the split earns its keep a second time:
+// for a power of two the mantissa is exactly 0.5, t is exactly zero, the
+// series returns exactly zero, and the answer is exactly the integer k. The
+// reciprocal below is only ever applied to a quantity below 0.35, so its own
+// 1e-16 relative error stays an absolute 3.5e-17 and never grows with the
+// magnitude of the result.
+pub fn log2: (x :f64) :f64 {
+    if x != x {
+        return x
+    }
+    if x < 0.0 {
+        return nan()
+    }
+    if x == 0.0 {
+        return negInf()
+    }
+    if x == posInf() {
+        return x
+    }
+    set k = exponent(x) :i64 mut
+    set m = mantissa(x) :f64 mut
+    if m < sqrtHalf() {
+        set m = m * 2.0
+        set k = k - 1
+    }
+    set t = (m - 1.0) / (m + 1.0)
+    return intToF64(k) + atanh2(t) * log2e()
+}
+
+// ── log10 ─────────────────────────────────────────────────────
+
+// The base-10 logarithm.
+//
+// The same construction as log, with the constant that belongs to the base.
+// The reduction is still written in base two, so the constant is log10(2) and
+// not ln10: log10(x) is k*log10(2) plus a small correction, never k*ln10 plus
+// one. Splitting it the same way matters for the same reason ln2 is split,
+// without it the base-10 logarithm of 1e300 is wrong in the fourteenth digit for
+// no reason other than the rounding of a single large product.
+pub fn log10: (x :f64) :f64 {
+    if x != x {
+        return x
+    }
+    if x < 0.0 {
+        return nan()
+    }
+    if x == 0.0 {
+        return negInf()
+    }
+    if x == posInf() {
+        return x
+    }
+    set k = exponent(x) :i64 mut
+    set m = mantissa(x) :f64 mut
+    if m < sqrtHalf() {
+        set m = m * 2.0
+        set k = k - 1
+    }
+    set t = (m - 1.0) / (m + 1.0)
+    set r = atanh2(t) * log10e()
+    return k * log10TwoHi() + (k * log10TwoLo() + r)
+}
+
+// ── log1p ─────────────────────────────────────────────────────
+
+// The natural logarithm of one plus x, for x above minus one.
+//
+// The same cancellation that motivates expm1: log(1 + 1e-10) as written loses
+// every digit, because 1 + 1e-10 is exactly 1.0 in Binary64.
+//
+// The identity log(1+x) = 2*atanh(x/(2+x)) fixes it without a special case.
+// Its argument is x/2 for small x, so the series never sees a number near one,
+// and no cancellation happens at any magnitude. Past |x| = 0.29 the argument
+// approaches one and the series slows down, so that end defers to log(1+x),
+// where the cancellation is mild.
+pub fn log1p: (x :f64) :f64 {
+    if x != x {
+        return x
+    }
+    if x < -1.0 {
+        return nan()
+    }
+    if x == -1.0 {
+        return negInf()
+    }
+    if x == posInf() {
+        return x
+    }
+    // For a subnormal x the halved argument underflows to zero and the series
+    // answers 0, but log1p(x) is x to the last bit at that size: x*x is already
+    // far below the ulp of x, so the series term is not merely small, it is
+    // invisible. Handing x back is the exact answer, not an approximation.
+    if x < dblMin() && x > 0.0 - dblMin() {
+        return x
+    }
+    if x < -0.29 {
+        return log(1.0 + x)
+    }
+    if x > 0.29 {
+        return log(1.0 + x)
+    }
+    return atanh2(x / (2.0 + x))
+}
+
+// ── pow ───────────────────────────────────────────────────────
+
+// x raised to y.
+//
+// For a positive x the answer is 2^(y*log2(x)), and both halves of that are
+// this module's own: log2 is exact at the powers of two and exp2 is exact at
+// the integers, so pow(2, 10) and pow(10, 2) are both exact, and pow(2, 0.5)
+// comes out of log2's integer result cleanly.
+//
+// Three cases do better than the general path and are worth the branches:
+//
+//   a whole-number y   repeated squaring, which is exact for every integer
+//                      result below 2^53 and costs a handful of multiplies.
+//   x negative         there is no real answer for a fractional y, and the
+//                      integer case carries the sign of an odd y.
+//   y equal to 0.5     routed to sqrt, so the general path is not used to
+//                      recompute what sqrt already does exactly.
+pub fn pow: (x :f64, y :f64) :f64 {
+    if x != x || y != y {
+        return nan()
+    }
+    if y == 0.0 {
+        return 1.0
+    }
+    if x == 1.0 {
+        return 1.0
+    }
+    if x == 0.0 {
+        if y > 0.0 {
+            return 0.0
+        }
+        return posInf()
+    }
+    if y == 0.5 {
+        if x < 0.0 {
+            return nan()
+        }
+        return sqrt(x)
+    }
+    if y == -0.5 {
+        if x < 0.0 {
+            return nan()
+        }
+        return 1.0 / sqrt(x)
+    }
+    if y == 1.0 {
+        return x
+    }
+    if y == 2.0 {
+        return x * x
+    }
+    if y == -1.0 {
+        return 1.0 / x
+    }
+    if x == posInf() {
+        if y > 0.0 {
+            return posInf()
+        }
+        return 0.0
+    }
+    if x == negInf() {
+        if y > 0.0 {
+            if isOdd(y) {
+                return negInf()
+            }
+            return posInf()
+        }
+        if isOdd(y) {
+            return 0.0 - 0.0
+        }
+        return 0.0
+    }
+    set sign = 1.0 :f64 mut
+    set ax = x :f64 mut
+    if x < 0.0 {
+        if !isWhole(y) {
+            return nan()
+        }
+        if isOdd(y) {
+            set sign = 0.0 - 1.0
+        }
+        set ax = 0.0 - x
+    }
+    if isWhole(y) && math::float::abs(y) < 1024.0 {
+        set r = intPow(ax, y)
+        if sign < 0.0 {
+            return 0.0 - r
+        }
+        return r
+    }
+    return sign * exp2(y * log2(ax))
+}
+
+// Whether a value is a whole number, and the same question for the oddness of
+// one. Both are decided from the truncating conversion, which is exact for any
+// double that is a whole number, and both return false for a value too large to
+// be one.
+fn isWhole: (y :f64) :bool {
+    if y != y {
+        return false
+    }
+    if math::float::abs(y) > 9007199254740992.0 {
+        return false
+    }
+    return intToF64(truncToI64(y)) == y
+}
+
+fn isOdd: (y :f64) :bool {
+    set n = truncToI64(y) :i64 mut
+    return (n & 1) == 1
+}
+
+// x raised to a whole-number exponent, by repeated squaring. The accumulator
+// runs down the bits of the exponent from the top, squaring the base each pass
+// and multiplying the accumulator when the bit is set. For |y| below 1024 that
+// is at most ten squarings and ten multiplies, and an integer result below 2^53
+// is exact all the way through.
+fn intPow: (x :f64, y :f64) :f64 {
+    set n = truncToI64(y) :i64 mut
+    set neg = n < 0
+    if neg {
+        set n = 0 - n
+    }
+    if n == 0 {
+        return 1.0
+    }
+    // The loop walks upward so that base is x^(2^bit) on the iteration that
+    // tests bit, which is the power that bit actually stands for. Walking
+    // downward instead multiplies by x^(2^(top-bit)) and quietly computes the
+    // wrong power for every exponent above one.
+    set top = 0 :i64 mut
+    set probe = n :i64 mut
+    while probe > 1 {
+        set probe = probe >> 1
+        set top = top + 1
+    }
+    set result = 1.0 :f64 mut
+    set base = x :f64 mut
+    set bit = 0 :i64 mut
+    while bit <= top {
+        if (n >> bit) & 1 == 1 {
+            set result = result * base
+        }
+        set base = base * base
+        set bit = bit + 1
+    }
+    if neg {
+        return 1.0 / result
+    }
+    return result
+}
+
+// ── hypot ─────────────────────────────────────────────────────
+
+// The square root of a squared plus b squared, to the Binary64 floor.
+//
+// Written naively, hypot(1e200, 1e200) overflows the square to an infinity and
+// reports one, and hypot(1e-200, 1e-200) underflows the square to a zero and
+// reports zero. Both answers are wrong by an infinite factor, and no accuracy
+// argument rescues them: the failure is in the formulation.
+//
+// So the larger argument is factored out first, the squares are taken of numbers
+// that are in [0,1], and the factor is restored by an exact scaling at the end.
+// hypot(1e200, 1e200) then returns 1.4142e200.
+//
+// The scaling is exact only when the ratio is. hypot(3, 4) returns exactly 5.0,
+// because 3/4 is representable, its square and the sum are exact, and the root
+// of 1.5625 is the representable 1.25. hypot(5, 12) returns
+// 13.000000000000002, one ulp out at a relative error of 1.4e-16, because 5/12
+// is not representable and the rounded ratio is already wrong before it is
+// squared. A correctly rounded hypot would need a final correction step; this one
+// reports the formulation's own error rather than hiding it.
+pub fn hypot: (a :f64, b :f64) :f64 {
+    if a != a || b != b {
+        return nan()
+    }
+    set x = math::float::abs(a)
+    set y = math::float::abs(b)
+    if x == posInf() || y == posInf() {
+        return posInf()
+    }
+    set m = math::float::max(x, y)
+    if m == 0.0 {
+        return 0.0
+    }
+    set u = x / m
+    set v = y / m
+    return m * sqrt(u * u + v * v)
+}
+

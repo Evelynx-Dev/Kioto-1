@@ -1,49 +1,105 @@
 module strings
 load kioto::strings::_externs
 
+// Length in bytes, not in codepoints. Every other function in this module
+// also works in bytes, so the two never disagree.
 pub fn len: (s :&str) :i64 { return rt_strings_len(s) }
+// ASCII uppercase. Bytes above 127 are left alone, because the module has no
+// table for them and a wrong capital is worse than a missing one.
 pub fn upper: (s :&str) :str { return rt_strings_to_upper(s) }
+// ASCII lowercase, with the same limit as strings::upper.
 pub fn lower: (s :&str) :str { return rt_strings_to_lower(s) }
+// Removes whitespace from both ends, where whitespace is every byte at or below
+// a space: spaces, tabs, newlines and carriage returns alike.
 pub fn trim: (s :&str) :str { return rt_strings_trim(s) }
+// The same operation as strings::trim, under the other name v2 exposed. New
+// code should pick one; trim is the one this module documents.
 pub fn strip: (s :&str) :str { return rt_strings_strip(s) }
+// Whether sub appears anywhere in s. An empty sub is contained in everything.
 pub fn contains: (s :&str, sub :&str) :bool { return rt_strings_contains(s, sub) }
+// Byte offset of the first occurrence of sub, or -1 when it is not there.
+// An empty sub is found at offset 0. -1 is the only failure signal, so a
+// result of 0 has to be read as "found at the front", not "not found".
 pub fn index: (s :&str, sub :&str) :i64 { return rt_strings_index_of(s, sub) }
+// Splits on every occurrence of sep, keeping empty fields: splitting "a,,b" on
+// "," gives three parts. An empty sep does not split at all and returns the
+// whole string as one part.
 pub fn split: (s :&str, sep :&str) :vec[str] { return rt_strings_split(s, sep) }
+// The inverse of split, and the way to build a path list or a line out of
+// parts without a loop.
 pub fn join: (parts :&vec[str], sep :&str) :str { return rt_strings_join_list(parts, sep) }
+// A slice of s, clamped rather than checked: a negative start becomes 0,
+// a length that runs past the end is cut short, and a length of zero or less
+// gives the empty string. Nothing here fails, so nothing here needs a bounds
+// check at the call site.
 pub fn substr: (s :&str, start :i64, len :i64) :str { return rt_strings_substr(s, start, len) }
+// s repeated n times. A count of zero or less gives the empty string.
 pub fn repeat: (s :&str, n :i64) :str { return rt_strings_repeat(s, n) }
+// The byte at an index, as 0 to 255, and 0 for an index outside the string.
+// A byte, not a codepoint: for anything beyond ASCII the caller has to walk
+// the leading bytes of a UTF-8 sequence to find the character boundaries.
 pub fn char_at: (s :&str, index :i64) :i64 { return rt_strings_char_at(s, index) }
+// The two strings joined, as a new value. This is also the + operator on two
+// strings, spelled as a function so it can be passed around.
 pub fn concat: (left :&str, right :&str) :str { return rt_string_concat(left, right) }
+// A second, independent reference to the same bytes. Needed whenever a
+// string is about to be moved by a call that takes it by value but is going to
+// be called again with the original.
 pub fn copy: (s :&str) :str { return rt_string_copy(s) }
 
+// Prefix and suffix tests, kept together because they are the two halves of
+// the same question.
 pub fn starts: () {
+    // Whether the string ends with this suffix, case-sensitively.
     pub fn with: (s :&str, prefix :&str) :bool { return rt_strings_starts_with(s, prefix) }
 }
 
+// Suffix tests. The mirror of starts, and the one to reach for when a file
+// name is what you are checking.
 pub fn ends: () {
     pub fn with: (s :&str, suffix :&str) :bool { return rt_strings_ends_with(s, suffix) }
 }
 
+// Substitution, all occurrences or just the first. Both leave the string alone
+// when old is not in it, and neither can loop forever: the replacement is not
+// rescanned.
 pub fn replace: () {
     pub fn all: (s :&str, old :&str, new :&str) :str { return rt_strings_replace(s, old, new) }
     pub fn first: (s :&str, old :&str, new :&str) :str { return rt_strings_replace_first(s, old, new) }
 }
 
+// Pads to a minimum width with the given filler, which may be longer than one
+// character and gets cut to fit. A string already at or over the width comes
+// back unchanged, so the call is safe to make unconditionally.
 pub fn pad: () {
     pub fn left: (s :&str, width :i64, pad :&str) :str { return rt_strings_pad_left(s, width, pad) }
     pub fn right: (s :&str, width :i64, pad :&str) :str { return rt_strings_pad_right(s, width, pad) }
 }
 
+// Conversions out of a scalar, and the only way to see one: Mire has no
+// implicit string conversion and no println, so printing means dasu(str).
 pub fn from: () {
+    // The decimal form of an integer, with a leading minus and nothing else.
     pub fn i64: (value :i64) :str { return rt_i64_to_string(value) }
+    // "true" or "false". Takes a :bool because that is the type a condition
+    // produces; there is no integer-to-bool conversion to lean on.
     pub fn bool: (value :bool) :str { return rt_bool_to_string(if value { 1 } else { 0 }) }
+    // Six significant digits, %g style: 3.14159265 prints as "3.14159". Enough
+    // to show a value at a glance, not enough to round-trip one, so never use
+    // it to serialise a number you intend to read back exactly.
     pub fn f64: (value :f64) :str { return rt_f64_to_string(value) }
 }
 
+// Parsing a string back into a scalar.
 pub fn to: () {
+    // The leading integer of the string, and 0 for anything that does not
+    // start with one, because the parse is atoll and atoll has no error channel.
+    // Check strings::starts::with for a digit if the difference matters.
     pub fn i64: (value :&str) :i64 { return rt_string_to_i64(*value) }
 }
 
+// The shape questions, as opposed to the content ones.
 pub fn is: () {
+    // Length zero. There is no blank test: a string of spaces is not empty.
     pub fn empty: (s :&str) :bool { return rt_strings_len(s) == 0 }
 }

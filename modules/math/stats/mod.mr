@@ -1,2 +1,237 @@
-# Kioto 3.0.0 — math::stats (not implemented yet).
-# See modules/math/mod.mr for the build order and todo.md for the symbol inventory.
+// Kioto 3.0.0 - math::stats.
+//
+// Descriptive statistics over a list of observations.
+//
+// Public symbols (10):
+//   mean median variance stddev mode minVal maxVal percentile corr covariance
+//
+// The data is vec[i64] and the answers are f64. That is the pairing the root tier
+// already established: math::avg and math::product take a vec[i64] and hand back
+// a double, because a mean of integers is a fraction and asking for a fraction of
+// a list of measurements is the normal case. It also keeps this module honest
+// about where its accuracy comes from. The inputs are exact, so a sum of them is
+// exact until the running total outgrows 2^53, and the deviations that variance
+// and covariance square are computed from an exact mean. Nothing here has to
+// apologize for the input.
+//
+// Every function takes the list by reference, never by value, so passing one
+// neither moves it nor charges a copy. The order statistics copy before they
+// sort, because sorting a caller's list in place to answer a question about it
+// would be a side effect nobody asked for.
+//
+// Empty input is 0.0 or 0 rather than a panic, matching the root helpers this
+// module sits beside. A statistic of nothing is not a statistic, but the caller
+// usually has a length check in hand and a 0 that reads as a placeholder is
+// kinder than an abort. Where the answer is genuinely undefined rather than
+// merely empty, that is called out at the function.
+
+load mire::vec
+
+// The runtime already converts a double to an integer, truncating toward zero,
+// and the percentile index needs exactly that.
+extern fn rt_f64_to_i64: (value :f64) :i64 lib "c"
+extern fn rt_math_sqrt: (value :f64) :f64 lib "c"
+
+// ── mean ───────────────────────────────────────────────────────
+
+// The arithmetic mean, the total over the count. An empty list has no mean, and
+// returns 0.0.
+pub fn mean: (list :&vec[i64]) :f64 {
+    return math::avg(list)
+}
+
+// ── median ─────────────────────────────────────────────────────
+
+// The middle observation. An even count has two middles, and they are averaged,
+// so the median of a list of two is their midpoint rather than either of them.
+//
+// The list is sorted first, on a copy. Sorting in place would reorder the
+// caller's data to answer a question about it, and the surprise would land in
+// whatever code ran next rather than here.
+pub fn median: (list :&vec[i64]) :f64 {
+    set n = vec::len(list) :i64
+    if n == 0 { return 0.0 }
+    set sorted = sorted_copy(list) :vec[i64]
+    set half = n / 2 :i64
+    if (n & 1) == 1 {
+        return vec::get::i64(sorted, half) * 1.0
+    }
+    set lower = vec::get::i64(sorted, half - 1) :i64
+    set upper = vec::get::i64(sorted, half) :i64
+    return (lower + upper) / 2.0
+}
+
+// ── variance ───────────────────────────────────────────────────
+
+// The population variance: the mean squared deviation from the mean, over n.
+//
+// This divides by n, not by n-1. The n-1 form is the unbiased estimator for a
+// sample, and it is a different statistic, not a better one. Choosing it here
+// would make the number disagree with the definition it is named after, and with
+// the root tier's helpers it sits beside. A caller who wants the sample estimate
+// scales by n/(n-1) themselves, which keeps the decision visible in their code.
+pub fn variance: (list :&vec[i64]) :f64 {
+    set n = vec::len(list) :i64
+    if n == 0 { return 0.0 }
+    set m = mean(list) :f64
+    set total = 0.0 :f64 mut
+    set i = 0 :i64 mut
+    while i < n {
+        set d = vec::get::i64(list, i) - m
+        set total = total + d * d
+        set i = i + 1
+    }
+    return total / n
+}
+
+// ── stddev ─────────────────────────────────────────────────────
+
+// The population standard deviation, the square root of the variance.
+//
+// The square root is taken once, at the end, rather than on every term. The
+// variance already carries the only rounding that matters; rooting each
+// deviation separately and squaring it back would add error and buy nothing.
+pub fn stddev: (list :&vec[i64]) :f64 {
+    return rt_math_sqrt(variance(list))
+}
+
+// ── mode ───────────────────────────────────────────────────────
+
+// The most frequent value. Ties go to the smallest of the tied values, so the
+// answer is a function of the data and not of the order the counts happened to
+// accumulate in.
+//
+// The counting is the obvious nested loop, one pass per candidate. That is
+// quadratic, and it is left that way on purpose: a hash map keyed on the
+// observations would be faster and would make the tie rule depend on a hash
+// order that is not part of any contract. The lists this runs on are the ones
+// people read and eyeball.
+pub fn mode: (list :&vec[i64]) :i64 {
+    set n = vec::len(list) :i64
+    if n == 0 { return 0 }
+    set best = vec::get::i64(list, 0) :i64 mut
+    set best_count = 0 :i64 mut
+    set i = 0 :i64 mut
+    while i < n {
+        set candidate = vec::get::i64(list, i) :i64
+        set count = 0 :i64 mut
+        set j = 0 :i64 mut
+        while j < n {
+            if vec::get::i64(list, j) == candidate { set count = count + 1 }
+            set j = j + 1
+        }
+        if count > best_count {
+            set best = candidate
+            set best_count = count
+        }
+        if count == best_count && candidate < best { set best = candidate }
+        set i = i + 1
+    }
+    return best
+}
+
+// ── minVal ─────────────────────────────────────────────────────
+
+// The smallest observation, or 0 for an empty list.
+pub fn minVal: (list :&vec[i64]) :i64 {
+    return math::minlist(list)
+}
+
+// ── maxVal ─────────────────────────────────────────────────────
+
+// The largest observation, or 0 for an empty list.
+pub fn maxVal: (list :&vec[i64]) :i64 {
+    return math::maxlist(list)
+}
+
+// ── percentile ─────────────────────────────────────────────────
+
+// The value below which p percent of the observations fall, with p in [0, 100].
+//
+// The order statistics are interpolated rather than snapped, so p = 50 on a two
+// element list is the midpoint of the two, which is what median returns and what
+// every table of percentiles in common use reports. p outside [0, 100] is clamped
+// to the ends instead of rejected: a percentile of 0 is the minimum, and a
+// caller computing one from a ratio should not have to range check first.
+pub fn percentile: (list :&vec[i64], p :f64) :f64 {
+    set n = vec::len(list) :i64
+    if n == 0 { return 0.0 }
+    set sorted = sorted_copy(list) :vec[i64]
+    if p <= 0.0 { return vec::get::i64(sorted, 0) * 1.0 }
+    if p >= 100.0 { return vec::get::i64(sorted, n - 1) * 1.0 }
+    // Where p lands on the scale of 0..n-1, and how far past the order statistic
+    // below it that lands.
+    set pos = 0.0 :f64 mut
+    set pos = p / 100.0 * (n - 1)
+    set floor_pos = math::float::floor(pos) :f64
+    set low = rt_f64_to_i64(floor_pos) :i64
+    set high = low + 1 :i64
+    if high >= n { return vec::get::i64(sorted, low) * 1.0 }
+    set fraction = pos - floor_pos :f64
+    set below = vec::get::i64(sorted, low) :i64
+    set above = vec::get::i64(sorted, high) :i64
+    return below + fraction * (above - below)
+}
+
+// ── covariance ─────────────────────────────────────────────────
+
+// How far the two lists move together: the mean of the products of their
+// deviations, over the shorter of the two.
+//
+// A positive result means the lists rise and fall together, zero that they do
+// not track, and negative that one rises as the other falls. The scale is
+// whatever the data is measured in, which is why the correlation below exists.
+pub fn covariance: (x :&vec[i64], y :&vec[i64]) :f64 {
+    set n = shared_len_i(x, y) :i64
+    if n == 0 { return 0.0 }
+    set mx = mean(x) :f64
+    set my = mean(y) :f64
+    set total = 0.0 :f64 mut
+    set i = 0 :i64 mut
+    while i < n {
+        set dx = vec::get::i64(x, i) - mx
+        set dy = vec::get::i64(y, i) - my
+        set total = total + dx * dy
+        set i = i + 1
+    }
+    return total / n
+}
+
+// ── corr ───────────────────────────────────────────────────────
+
+// The Pearson correlation of the two lists: covariance divided by the product of
+// their standard deviations, which lands in [-1, 1] and says how tightly the two
+// move together without carrying their units.
+//
+// A list that never varies has no spread to divide by, and the coefficient is
+// undefined rather than infinite. That case returns 0.0, meaning "no measurable
+// relationship" — the same answer as two unrelated lists, which is as close as
+// this signature can say.
+pub fn corr: (x :&vec[i64], y :&vec[i64]) :f64 {
+    set n = shared_len_i(x, y) :i64
+    if n == 0 { return 0.0 }
+    set sx = stddev(x) :f64
+    set sy = stddev(y) :f64
+    if sx == 0.0 || sy == 0.0 { return 0.0 }
+    return covariance(x, y) / (sx * sy)
+}
+
+// ── internals ──────────────────────────────────────────────────
+
+// A sorted copy of the observations, leaving the caller's list untouched.
+//
+// The copy is what keeps the caller's list in its original order: sorting in
+// place would answer a question about the data by rearranging the data, and the
+// surprise would land in whatever code ran next rather than here.
+fn sorted_copy: (list :&vec[i64]) :vec[i64] {
+    set out = vec::clone(list) :vec[i64] mut
+    vec::sort(out)
+    return out
+}
+
+fn shared_len_i: (x :&vec[i64], y :&vec[i64]) :i64 {
+    set lx = vec::len(x) :i64 mut
+    set ly = vec::len(y) :i64 mut
+    if ly < lx { return ly }
+    return lx
+}

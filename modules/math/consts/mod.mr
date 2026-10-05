@@ -28,15 +28,18 @@ pub fn golden: () :f64 { return 0.618033988749895 }
 // Square roots of small integers, handy for normalising a vector without
 // reaching for power::sqrt.
 pub fn sqrt2: () :f64 { return 1.4142135623730951 }
+// Square root of 3.
 pub fn sqrt3: () :f64 { return 1.7320508075688772 }
+// Square root of 5.
 pub fn sqrt5: () :f64 { return 2.23606797749979 }
 
 // Logarithms and their reciprocals, the natural way to convert bases.
 pub fn ln2: () :f64 { return 0.6931471805599453 }
+// Natural log of 10.
 pub fn ln10: () :f64 { return 2.302585092994046 }
 // log2(e), the factor that turns a natural log into a base-2 log.
 pub fn log2e: () :f64 { return 1.4426950408889634 }
 
 // The smallest gap between 1.0 and the next representable double. Any
 // difference claimed to be smaller than this is comparing rounding noise.
-pub fn epsilon: () :f64 { return 0.0000000000000002220446049250313 }
+pub fn epsilon: () :f64 { return 2.220446049250313e-16 }

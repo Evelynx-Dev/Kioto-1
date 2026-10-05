@@ -2,72 +2,101 @@ module net
 // Network PAL bindings
 load kioto::net::_externs
 
+// A connected socket. Closed with net::socket::close.
 pub struct Socket {
     handle :i64
 }
 
+// A bound socket waiting for peers. Closed with net::listener::close.
 pub struct Listener {
     handle :i64
 }
 
+// The two socket types, as functions rather than constants because a cons in
+// this module would be the only one in the package. Call them; the value is
+// not meant to be reasoned about.
 // Socket type constants
 pub fn PAL_SOCKET_TCP: () :i32 { return 1 :i32 }
+// The protocol selectors, as functions rather than constants because a bare
+// number in source would be a magic value with nothing to explain it. Pass
+// the result to connect, bind or listen.
 pub fn PAL_SOCKET_UDP: () :i32 { return 2 :i32 }
 
 // ── socket ──────────────────────────────────────────────────────
+// One end of a connection. connect for the client side, listener for the
+// server side.
 pub fn socket: () {
     pub fn connect: () {
+        // Connects over TCP. port is a :u16, so a bare integer literal will not
+        // do: write 8080 :u16.
         pub fn tcp: (host :&str, port :u16) :Socket {
             set h = pal_socket_connect(host, port, PAL_SOCKET_TCP())
             return (Socket handle: h)
         }
 
+        // Opens an unconnected UDP socket aimed at host and port. There is no
+        // handshake, so a bad address is not reported until the first send.
         pub fn udp: (host :&str, port :u16) :Socket {
             set h = pal_socket_connect(host, port, PAL_SOCKET_UDP())
             return (Socket handle: h)
         }
     }
 
+    // Sends the whole string and returns the byte count written.
     pub fn send: (sock :&Socket, data :&str) :i64 {
         return pal_socket_send(sock.handle, data, len(data))
     }
 
+    // Reads up to max_len bytes into buf and returns how many arrived. buf
+    // must have that much room: strings::repeat("\0" n).
     pub fn recv: (sock :&Socket, buf :&mut str, max_len :i64) :i64 {
         return pal_socket_recv(sock.handle, buf, max_len)
     }
 
+    // Closes the socket.
     pub fn close: (sock :&Socket) {
         use pal_socket_close(sock.handle)
     }
 }
 
 // ── listener ────────────────────────────────────────────────────
+// The server side: bind a port, then accept or, for UDP, send and receive on
+// the listener itself.
 pub fn listener: () {
     pub fn bind: () {
+        // Binds a TCP port. A handle of 0 or less means the bind failed, most
+        // often because the port is already in use.
         pub fn tcp: (port :u16) :Listener {
             set h = pal_listener_bind(port PAL_SOCKET_TCP())
             return (Listener handle: h)
         }
 
+        // Binds a UDP port.
         pub fn udp: (port :u16) :Listener {
             set h = pal_listener_bind(port PAL_SOCKET_UDP())
             return (Listener handle: h)
         }
     }
 
+    // Blocks until a peer connects and returns the socket for that one
+    // connection. The listener stays open, so this can be called in a loop.
     pub fn accept: (listener :&Listener) :Socket {
         set h = pal_listener_accept(listener.handle)
         return (Socket handle: h)
     }
 
+    // Sends on a UDP listener, because a UDP socket has no connection to
+    // send through.
     pub fn send: (listener :&Listener, data :&str) :i64 {
         return pal_listener_send(listener.handle data len(data))
     }
 
+    // Receives on a UDP listener, same reason.
     pub fn recv: (listener :&Listener, buf :&mut str, max_len :i64) :i64 {
         return pal_listener_recv(listener.handle buf max_len)
     }
 
+    // Closes the listener.
     pub fn close: (listener :Listener) {
         use pal_listener_close(listener.handle)
     }

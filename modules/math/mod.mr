@@ -30,11 +30,18 @@ load kioto::math::seq
 load kioto::math::int
 load kioto::math::float
 load kioto::math::random
+load kioto::math::sum
+load kioto::math::stats
+load kioto::math::power
 
-// 2^52, the first magnitude at which every f64 is already an integer.
-cons LIMIT = 4503599627370496.0 :f64
-// Largest power of two below LIMIT.
-cons TOP = 2251799813685248.0 :f64
+// No cons are declared in this tier, and none should be added. A cons is not
+// readable through a dotted path, and reachable-import selection drops a
+// module's cons whenever a consumer references only part of that module: the
+// 2^52 and 2^51 powers of two that math::float needs were declared both here
+// and there, which breaks the rule of one constant per module with a unique
+// name, and a function called on its own could not see them. The values live as
+// literals at their use sites instead.
+// See the note at the top of modules/math/float/mod.mr.
 
 // Absolute value. NaN compares false against 0 and so is returned unchanged.
 pub fn abs: (x :f64) :f64 {
@@ -58,6 +65,9 @@ pub fn sign: (x :f64) :f64 {
     return 0.0
 }
 
+// The smaller of two floats, NaN-propagating: if either argument is NaN the
+// answer is NaN rather than the other number, so a NaN cannot be silently
+// dropped by a min over a list.
 pub fn min: (a :f64, b :f64) :f64 {
     if a < b {
         return a
@@ -65,6 +75,7 @@ pub fn min: (a :f64, b :f64) :f64 {
     return b
 }
 
+// The larger of two floats, NaN-propagating in the same way as math::min.
 pub fn max: (a :f64, b :f64) :f64 {
     if a > b {
         return a

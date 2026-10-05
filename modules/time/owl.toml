@@ -3,5 +3,6 @@ name = "time"
 entry = "mod.mr"
 
 [exports]
+mod = "mod.mr"
 unix    = "unix.mr"
 elapsed = "elapsed.mr"

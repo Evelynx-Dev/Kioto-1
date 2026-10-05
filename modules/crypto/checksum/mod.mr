@@ -14,17 +14,22 @@ extern fn rt_crypto_sha512_hex: (s :&str) :str lib "c"
 // verify installed packages without shelling out to sha512sum/base64.
 
 /! Lowercase-hex SHA-512 of a file's raw bytes (binary-safe). !/
+// A content hash of a file's bytes, hex.
 pub fn file: (path :&str) :str {
     return rt_crypto_sha512_file_hex(path)
 }
 
 /! Lowercase-hex SHA-512 of an in-memory string. !/
+// A content hash of a string, hex. For comparing two things, not for
+// proving authorship: use crypto::sign for that.
 pub fn text: (s :&str) :str {
     return rt_crypto_sha512_hex(s)
 }
 
 /! Reads the value stored under `key` from a `key = value` checksum store.
    Returns "" when the file or the key is missing. !/
+// Looks a key up in a checksum store file and returns its recorded value, or
+// the empty string when the store or the key is missing.
 pub fn store_get: (store_path :&str, key :&str) :str {
     if !fs::exists(store_path) { return "" }
     set content = fs::read(store_path)
@@ -45,6 +50,8 @@ pub fn store_get: (store_path :&str, key :&str) :str {
 
 /! Inserts or replaces `key = value` in a checksum store, preserving the other
    entries. Returns true when the store was written. !/
+// Records a value for a key in a checksum store, creating the file if
+// needed.
 pub fn store_put: (store_path :&str, key :&str, value :&str) :bool {
     set prefix = strings::concat(key " = ")
     set entry = strings::concat(prefix value)
@@ -75,6 +82,8 @@ pub fn store_put: (store_path :&str, key :&str, value :&str) :bool {
 }
 
 /! True when the stored digest for `key` matches `expected`. !/
+// Whether the store records exactly this value for this key, which is the
+// question a lockfile or a manifest actually asks.
 pub fn verify: (store_path :&str, key :&str, expected :&str) :bool {
     set stored = checksum::store_get(store_path key)
     if stored == "" || expected == "" { return false }

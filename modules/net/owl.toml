@@ -24,6 +24,7 @@ bin = "bin"
 generated = "bin/generated"
 
 [exports]
+mod = "mod.mr"
 _externs = "_externs.mr"
 ["owl@lock"]
 version = "3"

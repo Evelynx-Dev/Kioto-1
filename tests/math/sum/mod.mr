@@ -1,0 +1,84 @@
+// math::sum — compensated and pairwise list reductions, one test per public
+// symbol.
+//
+// The fsum test is the reason this module exists, so it is the one that carries
+// the weight. A list of 1e16, 1.0 and -1e16 sums to exactly 1.0 in real
+// arithmetic, and a naive left to right fold also returns 0.0 — 1.0 is smaller
+// than the ulp of 1e16, so the first addition drops it on the floor and the
+// third addition cancels. A test that only checked fsum against a naive sum
+// would therefore pass even if fsum were naive. So the test asserts the value
+// that only the compensation can produce.
+//
+// Everything else is checked on values that are exact in binary64 — small
+// integers and halves — so the assertions are exact equality rather than a
+// tolerance. A tolerance there would hide the bugs worth catching and nothing
+// else.
+//
+// The mismatched length cases are deliberate, not incidental: sumprod and dist
+// are specified to walk the shorter list, and that is a decision a future edit
+// could quietly undo.
+
+load kioto
+load mire::vec
+
+@[test]
+pub fn fsum_recovers_what_a_naive_fold_drops: () :bool {
+    // The cancellation case above. Naive gives 0.0; only the compensation gives 1.0.
+    set cancel = [1.0e16 1.0 0.0 -1.0e16] :vec[f64]
+    if math::sum::fsum(cancel) != 1.0 { return false }
+    // An ordinary sum, and the order-independence that is the whole promise.
+    set plain = [1.0 2.0 3.5 4.25] :vec[f64]
+    if math::sum::fsum(plain) != 10.75 { return false }
+    if math::sum::fsum([4.25 3.5 2.0 1.0] :vec[f64]) != 10.75 { return false }
+    // Nothing to add is zero, and a single element is itself.
+    if math::sum::fsum([] :vec[f64]) != 0.0 { return false }
+    if math::sum::fsum([7.5] :vec[f64]) != 7.5 { return false }
+    return true
+}
+
+@[test]
+pub fn prod_multiplies_into_the_start_value: () :bool {
+    set v = [2.0 3.0 4.0] :vec[f64]
+    if math::sum::prod(v, 1.0) != 24.0 { return false }
+    // The start value is part of the product, not a replacement for it.
+    if math::sum::prod(v, 0.5) != 12.0 { return false }
+    if math::sum::prod(v, 0.0) != 0.0 { return false }
+    // An empty list is the identity of the fold.
+    if math::sum::prod([] :vec[f64], 5.0) != 5.0 { return false }
+    return true
+}
+
+@[test]
+pub fn sumprod_pairs_elements_and_stops_at_the_shorter_list: () :bool {
+    set p = [1.0 2.0 3.0] :vec[f64]
+    set q = [4.0 5.0 6.0] :vec[f64]
+    // 1*4 + 2*5 + 3*6
+    if math::sum::sumprod(p, q) != 32.0 { return false }
+    // Order matters to a dot product, unlike a sum.
+    if math::sum::sumprod(q, p) != 32.0 { return false }
+    // Mismatched lengths reduce the overlap, 1*4 + 2*5, and do not run off the
+    // end of the shorter list.
+    set short_q = [4.0 5.0] :vec[f64]
+    if math::sum::sumprod(p, short_q) != 14.0 { return false }
+    if math::sum::sumprod(short_q, p) != 14.0 { return false }
+    // No overlap at all is zero, not a bounds failure.
+    if math::sum::sumprod(p, [] :vec[f64]) != 0.0 { return false }
+    return true
+}
+
+@[test]
+pub fn dist_is_the_euclidean_length_of_the_difference: () :bool {
+    set origin = [0.0 0.0 0.0] :vec[f64]
+    set point = [3.0 4.0 0.0] :vec[f64]
+    // 3-4-5, exact in binary64.
+    if math::sum::dist(origin, point) != 5.0 { return false }
+    if math::sum::dist(point, origin) != 5.0 { return false }
+    // A vector against itself is zero, which is also the empty and the
+    // no-overlap case.
+    if math::sum::dist(point, point) != 0.0 { return false }
+    if math::sum::dist(origin, [] :vec[f64]) != 0.0 { return false }
+    // Mismatched lengths reduce the overlap: the third component is not read.
+    set pair = [0.0 3.0] :vec[f64]
+    if math::sum::dist(origin, pair) != 3.0 { return false }
+    return true
+}

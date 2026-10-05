@@ -42,6 +42,8 @@ pub fn the_qualified_call_is_not_the_local_one: () :bool {
 
 @[test]
 pub fn the_qualified_call_separates_nan_from_infinity: () :bool {
-    return !math::float::isNan(1.0 / 0.0)
-    return !math::float::isNan(0.0 - 1.0 / 0.0)
+    // Both infinities have to be recognised as not-NaN, and both assertions
+    // are joined rather than stacked: a second return would be dead code and
+    // the subtraction case would never be checked at all.
+    return !math::float::isNan(1.0 / 0.0) && !math::float::isNan(0.0 - 1.0 / 0.0)
 }

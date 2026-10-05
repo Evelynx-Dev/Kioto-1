@@ -1,3 +1,6 @@
 [project]
 name = "mem"
 entry = "mod.mr"
+
+[exports]
+mod = "mod.mr"

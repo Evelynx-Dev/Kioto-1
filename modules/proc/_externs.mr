@@ -15,3 +15,12 @@ extern fn rt_proc_capture_argv: (cmd :&str, args :vec[str]) :str lib "c"
 extern fn rt_proc_capture_argv2: (cmd :&str, args :vec[str], cwd :&str, merge_err :i64) :str lib "c"
 extern fn rt_proc_last_exit: () :i64 lib "c"
 extern fn rt_read_tty: () :str lib "c"
+
+// Runtime-gated shell. Always present in the PAL; the policy decides whether a
+// given call is allowed. Denied unless fs::unsafe::enter() is active on this
+// thread.
+// The rt_ bridge, not the pal_ one: the shell's captured output is malloc'd
+// [PAL-OWNED], and the compiler's pal_-str-return path emits a call to @free
+// without declaring it. The bridge copies and frees in C, where it is right.
+extern fn rt_proc_shell: (command :&str) :str lib "c"
+extern fn pal_proc_shell_status: () :i64 lib "c"

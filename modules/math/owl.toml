@@ -7,17 +7,24 @@ entry = "mod.mr"
 # reached through the package entry, so they must NOT be listed here. crypto
 # and strings set the same precedent.
 #
-# Only modules that exist are listed. The directory tree also holds
-# stats/, complex/, decimal/, power/, trig/, hyperbolic/ and special/, but each
-# is a two-line placeholder pointing at todo.md, and `sum/` is not a module at
-# all — `sum` is a root helper in mod.mr. Exporting a placeholder gives a
-# consumer an empty namespace and an "Unknown function" for the call it wanted,
-# which reads like a compiler bug; a missing export says plainly that the
-# module is not there yet. Each placeholder joins this table when it has
-# functions.
+# Only modules that exist are listed. The directory tree also holds complex/,
+# decimal/, trig/, hyperbolic/ and special/, but each is a two-line
+# placeholder pointing at todo.md. Exporting a placeholder gives a consumer an
+# empty namespace and an "Unknown function" for the call it wanted, which reads
+# like a compiler bug; a missing export says plainly that the module is not there
+# yet. Each placeholder joins this table when it has functions.
+#
+# sum/ is listed and shares a name with the root helper `sum` in mod.mr. The two
+# do not collide: the root helper is reached as math::sum and this one as
+# math::sum::fsum, and the root one adds a vec[i64] exactly while these reduce
+# f64 lists.
 [exports]
+mod = "mod.mr"
 consts = "consts/mod.mr"
 seq    = "seq/mod.mr"
 int    = "int/mod.mr"
 float  = "float/mod.mr"
 random = "random/mod.mr"
+sum    = "sum/mod.mr"
+stats  = "stats/mod.mr"
+power  = "power/mod.mr"

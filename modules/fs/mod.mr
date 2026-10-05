@@ -2,61 +2,92 @@ module fs
 load kioto::strings
 load kioto::fs::_externs
 
+// A directory opened as a capability: every path in a file or directory
+// operation is resolved relative to it and may not escape it. Obtain one
+// with fs::root::open and hand it back with fs::root::close.
 pub struct Root {
     handle :i64
 }
 
+// An open file. The struct holds a descriptor, so close is what releases it;
+// a File that goes out of scope without a close leaks the descriptor.
 pub struct File {
     handle :i64
 }
 
+// An open directory being iterated. Like File, it owns a descriptor that
+// fs::dir::close gives back.
 pub struct Dir {
     handle :i64
 }
 
+// Flags for fs::file::open::read and friends, combined with +. READ and
+// WRITE are access modes; CREATE, TRUNCATE and APPEND only mean anything
+// alongside WRITE.
 cons PAL_OPEN_READ = 1 :i32
 cons PAL_OPEN_WRITE = 2 :i32
 cons PAL_OPEN_CREATE = 4 :i32
 cons PAL_OPEN_TRUNCATE = 8 :i32
 cons PAL_OPEN_APPEND = 16 :i32
+// Values for the whence argument of fs::file::seek.
 cons PAL_SEEK_BEGIN = 0 :i32
 cons PAL_SEEK_CURRENT = 1 :i32
 cons PAL_SEEK_END = 2 :i32
 
-// PAL error codes (pal.h pal_error_code_t). fs::last_error() returns these.
-cons PAL_ERR_OK = 0 :i64
-cons PAL_ERR_NOT_FOUND = 1 :i64
-cons PAL_ERR_PERMISSION = 2 :i64
-cons PAL_ERR_IO = 3 :i64
-cons PAL_ERR_INVALID = 4 :i64
-cons PAL_ERR_NO_MEM = 5 :i64
-cons PAL_ERR_BUSY = 6 :i64
-cons PAL_ERR_UNSUPPORTED = 7 :i64
-cons PAL_ERR_ALREADY_EXISTS = 8 :i64
-cons PAL_ERR_INVALID_HANDLE = 9 :i64
-cons PAL_ERR_OWNERSHIP = 10 :i64
-cons PAL_ERR_NOT_EMPTY = 11 :i64
+pub fn open_read: () :i32 { return 1 :i32 }
+pub fn open_write: () :i32 { return 2 :i32 }
+pub fn open_create: () :i32 { return 4 :i32 }
+pub fn open_truncate: () :i32 { return 8 :i32 }
+pub fn open_append: () :i32 { return 16 :i32 }
+pub fn seek_begin: () :i32 { return 0 :i32 }
+pub fn seek_current: () :i32 { return 1 :i32 }
+pub fn seek_end: () :i32 { return 2 :i32 }
 
+// PAL error codes (pal.h pal_error_code_t). fs::last_error() returns these.
+
+// Whether anything exists at path, of any kind. False for a path whose parent
+// does not exist, and false for a dangling symlink.
 pub fn exists: (path :&str) :bool {
     return pal_fs_exists(path)
 }
 
+// Whether path is a regular file. Directories and symlinks are false; use
+// fs::exists for the any-kind question.
 pub fn is_file: (path :&str) :bool {
     return pal_fs_is_file(path)
 }
 
+// The whole file as a string, or the empty string when it cannot be read. The
+// result is NUL-terminated like every other Mire string, so a file that
+// contains a NUL byte reads back truncated at that byte: this is a text
+// reader, and binary data belongs in crypto or a file::read loop.
 pub fn read: (path :&str) :str {
     return rt_fs_read_bytes(path)
 }
 
-pub fn write: (path :&str, data :&str) {
+// Writes data to path, creating it and truncating whatever was there. The
+// value is borrowed, not moved, so the caller keeps its string. Returns true
+// only if the file was opened and the whole of data reached it; on false,
+// fs::last_error() holds the PAL code. A caller that ignores the result will
+// not know the write did not happen, so check it. There is no append variant
+// at this level; open a file and seek to the end for that.
+pub fn write: (path :&str, data :&str) :bool {
     set root = pal_root_open(".")
+    if root <= 0 { return false }
     set f = pal_file_open(root, path, 14 :i32)
-    pal_file_write(f, data, len(data))
-    pal_file_close(f)
-    pal_root_close(root)
+    if f <= 0 {
+        use pal_root_close(root)
+        return false
+    }
+    set data_len = strings::len(data)
+    set written = pal_file_write(f, data, data_len)
+    use pal_file_close(f)
+    use pal_root_close(root)
+    return written == data_len
 }
 
+// Unlinks a single file. For anything recursive, or to remove a directory at
+// all, use fs::remove and fs::remove_all, which report a proper error code.
 pub fn drop: (path :&str) :bool {
     return pal_fs_unlink(path)
 }
@@ -128,6 +159,10 @@ pub fn last_error: () :i64 {
     return pal_last_error()
 }
 
+// The names of the entries in a directory, excluding "." and "..". Names
+// come back in whatever order the filesystem reports, so sort them if order
+// matters. An unreadable directory yields an empty vector rather than an
+// error; check fs::exists first if the difference matters.
 pub fn list: (path :&str) :vec[str] {
     set root = pal_root_open(".")
     set d = pal_dir_open(root, path)
@@ -136,7 +171,15 @@ pub fn list: (path :&str) :vec[str] {
     set n = pal_dir_next_name(d, entry, 256) :i64 mut
     while n > 0 {
         set name = rt_strings_substr(entry, 0, n)
-        set result = rt_vecs_push_ptr(result, name)
+        // "." and ".." are how a directory navigates to itself and to its
+        // parent, not entries that live in it. They are dropped here so that
+        // no caller has to remember to drop them, and so that list agrees
+        // with the recursion in fs_remove_recursive below.
+        if name != "." {
+            if name != ".." {
+                set result = rt_vecs_push_ptr(result, name)
+            }
+        }
         set n = pal_dir_next_name(d, entry, 256)
     }
     pal_dir_close(d)
@@ -144,12 +187,21 @@ pub fn list: (path :&str) :vec[str] {
     return result
 }
 
+// Creates exactly one directory, which means false for two different reasons:
+// the parent does not exist, or the directory already does. There is no -p and
+// no already-exists tolerance, because a silent recursive mkdir hides the
+// mistake that caused the missing parent. Note also that a false result leaves
+// fs::last_error() at PAL_ERR_OK, so there is no code telling the two apart.
+// Write a test before relying on either.
 pub fn mkdir: (path :&str) :bool {
     return pal_fs_mkdir(path)
 }
 
 // ── path ────────────────────────────────────────────────────────
 pub fn path: () {
+    // Joins two path fragments with a single separator, adding one only when
+    // the first part does not already end in one. An absolute second part is
+    // appended, not honoured, so join never escapes the root on its own.
     pub fn join: (a :&str, b :&str) :&str {
         set last = rt_strings_char_at(a, len(a) - 1)
         if last == 47 {
@@ -159,6 +211,8 @@ pub fn path: () {
         }
     }
 
+    // The directory part of a path, or "." when there is no separator. The
+    // separator itself is not included.
     pub fn dir: (path :&str) :&str {
         set i = len(path) - 1 :i64 mut
         while i > 0 {
@@ -170,6 +224,7 @@ pub fn path: () {
         return "."
     }
 
+    // The last component of a path, separators not included.
     pub fn name: (path :&str) :&str {
         set i = len(path) - 1 :i64 mut
         while i > 0 {
@@ -181,6 +236,9 @@ pub fn path: () {
         return path
     }
 
+    // The extension of the last component, dot included, or the empty string
+    // when there is none. A leading dot is not an extension: ".gitignore" has
+    // none.
     pub fn ext: (path :&str) :&str {
         set n = fs::path::name(path)
         set i = len(n) - 1 :i64 mut
@@ -196,23 +254,34 @@ pub fn path: () {
 
 // ── dir ─────────────────────────────────────────────────────────
 pub fn dir: () {
+    // One directory, same rules and same silence as fs::mkdir. fs::dir::create
+    // exists so that the family of operations on a directory reads together.
     pub fn create: (path :&str) :bool {
         return pal_fs_mkdir(path)
     }
 
+    // Removes an empty directory. A directory with entries in it fails.
     pub fn remove: (path :&str) :bool {
         return pal_fs_rmdir(path)
     }
 
+    // Opens a directory under a root, for iteration with fs::dir::next.
     pub fn open: (root :Root, path :&str) :Dir {
         set h = pal_dir_open(root.handle, path)
         return (Dir handle: h)
     }
 
-    pub fn next: (d :Dir, entry :&mut str) :bool {
-        return pal_dir_next_name(d.handle, entry, 256) > 0
+    // Advances the iterator and writes the next entry name into entry, which
+    // must already have room for max_len bytes: strings::repeat("\0" max_len)
+    // is the shape to use. max_len is passed through to the PAL rather than
+    // assumed, so a long name reports the overflow instead of being written
+    // past the end of the buffer, and the same rule as fs::file::read applies
+    // here. False once the directory is exhausted.
+    pub fn next: (d :Dir, entry :&mut str, max_len :i64) :bool {
+        return pal_dir_next_name(d.handle, entry, max_len) > 0
     }
 
+    // Releases the directory handle. Exhausting the iterator does not do it.
     pub fn close: (d :Dir) {
         use pal_dir_close(d.handle)
     }
@@ -220,62 +289,308 @@ pub fn dir: () {
 
 // ── root ────────────────────────────────────────────────────────
 pub fn root: () {
+    // Opens a directory as a capability root. Every later path is resolved
+    // inside it, which is what keeps a path built from user input inside the
+    // sandbox.
     pub fn open: (path :&str) :Root {
         set h = pal_root_open(path)
         return (Root handle: h)
     }
 
+    // Releases the root handle.
     pub fn close: (root :Root) {
         use pal_root_close(root.handle)
     }
 }
 
 // ── permissions ───────────────────────────────────────────────────
+// Changes a path's mode, chmod style: mode is a string such as "755".
 pub fn permission: (path :str mode :str) :bool {
     return pal_fs_chmod(path, mode)
 }
 
 // ── file ────────────────────────────────────────────────────────
+// The four ways to open a file, kept as one group so the flag combinations
+// read together instead of being four bare functions with a shared comment.
 pub fn file: () {
     pub fn open: () {
+        // Opens for reading, positioned at the start. The flags are the
+        // PAL_OPEN_* constants, combined with + when more than one applies.
         pub fn read: (root :Root, path :&str) :File {
             set h = pal_file_open(root.handle, path, 1 :i32)
             return (File handle: h)
         }
 
+        // Opens for writing without truncating, so an existing longer file keeps
+        // its tail and whatever you write past the old end.
         pub fn write: (root :Root, path :&str) :File {
             set h = pal_file_open(root.handle, path, 2 :i32)
             return (File handle: h)
         }
 
+        // Opens for writing, creating the file if it is missing and leaving it
+        // alone if it is not.
         pub fn create: (root :Root, path :&str) :File {
             set h = pal_file_open(root.handle, path, 7 :i32)
             return (File handle: h)
         }
 
+        // Opens for writing and empties the file first.
         pub fn truncate: (root :Root, path :&str) :File {
             set h = pal_file_open(root.handle, path, 15 :i32)
             return (File handle: h)
         }
     }
 
+    // Reads up to max_len bytes into buf and returns how many arrived. buf
+    // must have that much room, for the same reason as fs::dir::next.
     pub fn read: (file :File, buf :&mut str, max_len :i64) :i64 {
         return pal_file_read(file.handle, buf, max_len)
     }
 
+    // Writes the whole string and returns the byte count written.
     pub fn write: (file :File, data :&str) :i64 {
         return pal_file_write(file.handle, data, len(data))
     }
 
+    // Moves the position and returns the new absolute offset. whence is one
+    // of the PAL_SEEK_* constants.
     pub fn seek: (file :File, offset :i64, whence :i32) :i64 {
         return pal_file_seek(file.handle, offset, whence)
     }
 
+    // Current size in bytes. For a file open for writing this is the size now,
+    // which is not the size after the last write is flushed.
     pub fn size: (file :File) :i64 {
         return pal_file_size(file.handle)
     }
 
+    // Closes the file and releases the descriptor.
     pub fn close: (file :File) {
         use pal_file_close(file.handle)
+    }
+}
+
+// ══ SANDBOX ══════════════════════════════════════════════════
+// Every absolute-path function in this module — exists, read, write, remove,
+// list, chmod, and root::open — is gated by the same policy, enforced in the
+// PAL rather than here so that a program declaring its own externs meets the
+// same check. The policy is: a path must stay inside the sandbox root.
+//
+// The root defaults to the working directory, so the common case (a program
+// working on files next to itself) needs no setup, and a path like /etc/passwd
+// is denied because it is not under the working directory.
+//
+// Three ways to widen it, in increasing order of how much you should think
+// about it first:
+//
+//   fs::sandbox::root(path)   declare a specific tree this program may use.
+//                             The right answer for a tool with a known data
+//                             directory. Still default-deny inside it.
+//   fs::unrestricted::enter()  suspend the policy for this thread. For a
+//                             program that genuinely needs the whole
+//                             filesystem. Must be balanced with exit().
+//   fs::unrestricted::*       one explicitly-named unsandboxed operation.
+//
+// None of these are "turn security off" switches in the abstract: each is a
+// statement about what this program is trusted to do, and each shows up at
+// the call site in the source.
+
+pub fn sandbox: () {
+    // The root the policy is currently enforcing, or the empty string when it
+    // is denying every absolute path. Defaults to the working directory,
+    // captured the first time the policy is consulted.
+    pub fn get_root: () :str {
+        return rt_sbx_get_root()
+    }
+
+    // Declares the tree this program may read and write. The path is resolved
+    // once, so symlinks in the argument do not become a way to move the root
+    // later. A path that does not exist stores an empty root, which denies
+    // everything: a typo fails closed rather than quietly widening to "/".
+    //
+    // Process-wide, not per-thread. The sandbox is a property of the program,
+    // and two threads disagreeing about what the sandbox is would itself be a
+    // vulnerability. Call it once during start-up.
+    pub fn set_root: (path :&str) {
+        use pal_sbx_set_root(path)
+    }
+
+    // Denies every absolute path until set_root is called again. Only useful
+    // for a program that intends to use fs::unrestricted::* exclusively.
+    pub fn deny_all: () {
+        use pal_sbx_set_root("")
+    }
+
+    // Whether the policy would allow this path right now, without performing
+    // the operation. Use it to reject a path up front with a clear message
+    // rather than letting an operation fail with a bare "permission denied".
+    pub fn permits: (path :&str) :bool {
+        return pal_sbx_permit(path)
+    }
+
+    // Why the most recent permits() (or denied operation) on this thread said
+    // no. These two are only meaningful after a denial.
+    pub fn reason: () :i64 {
+        return pal_sbx_reason()
+    }
+
+    pub fn reason_text: () :str {
+        return rt_sbx_reason_text()
+    }
+
+    // The path that was denied.
+    pub fn denied_path: () :str {
+        return rt_sbx_detail()
+    }
+
+    // How many times fs::unrestricted::enter has been called without a matching
+    // exit on this thread. Anything above zero means the policy is suspended.
+    pub fn unsafe_depth: () :i64 {
+        return pal_sbx_unsafe_depth()
+    }
+}
+
+// ══ Constants ══
+// Every public constant in this module exists twice: as a `cons`, which is
+// documentation and is what the module's own code uses, and as a zero-argument
+// function, which is what callers use. The duplication is deliberate. A `cons`
+// is a declaration, and declarations are only reliably in scope for the file
+// that makes them, so a caller in another file that writes fs::PAL_ERR_NOT_FOUND
+// gets a confusing "unknown identifier" rather than the value. A function is a
+// value-producing expression with no such caveat, so it always resolves.
+//
+// Where the two ever disagree, the function is the correct one, because the
+// function is the one that is reachable.
+
+// The reason codes fs::sandbox::reason can return. Append-only: a new code is
+// added at the end so an existing comparison keeps its meaning.
+cons PAL_SBX_DENY_NONE = 0 :i64
+cons PAL_SBX_DENY_NO_ROOT = 1 :i64
+cons PAL_SBX_DENY_ABSOLUTE = 2 :i64
+cons PAL_SBX_DENY_ESCAPE = 3 :i64
+cons PAL_SBX_DENY_TRAVERSAL = 4 :i64
+cons PAL_SBX_DENY_SYMLINK = 5 :i64
+
+// The PAL error codes fs::last_error returns. Append-only for the same reason.
+cons PAL_ERR_OK = 0 :i64
+cons PAL_ERR_NOT_FOUND = 1 :i64
+cons PAL_ERR_PERMISSION = 2 :i64
+cons PAL_ERR_IO = 3 :i64
+cons PAL_ERR_INVALID = 4 :i64
+cons PAL_ERR_NO_MEM = 5 :i64
+cons PAL_ERR_BUSY = 6 :i64
+cons PAL_ERR_UNSUPPORTED = 7 :i64
+cons PAL_ERR_ALREADY_EXISTS = 8 :i64
+cons PAL_ERR_INVALID_HANDLE = 9 :i64
+cons PAL_ERR_OWNERSHIP = 10 :i64
+cons PAL_ERR_NOT_EMPTY = 11 :i64
+
+pub fn reason_none: () :i64 { return 0 }
+pub fn reason_no_root: () :i64 { return 1 }
+pub fn reason_absolute: () :i64 { return 2 }
+pub fn reason_escape: () :i64 { return 3 }
+pub fn reason_traversal: () :i64 { return 4 }
+pub fn reason_symlink: () :i64 { return 5 }
+
+pub fn err_ok: () :i64 { return 0 }
+pub fn err_not_found: () :i64 { return 1 }
+pub fn err_permission: () :i64 { return 2 }
+pub fn err_io: () :i64 { return 3 }
+pub fn err_invalid: () :i64 { return 4 }
+pub fn err_no_mem: () :i64 { return 5 }
+pub fn err_busy: () :i64 { return 6 }
+pub fn err_unsupported: () :i64 { return 7 }
+pub fn err_already_exists: () :i64 { return 8 }
+pub fn err_invalid_handle: () :i64 { return 9 }
+pub fn err_ownership: () :i64 { return 10 }
+pub fn err_not_empty: () :i64 { return 11 }
+
+// ══ UNSAFE ══════════════════════════════════════════════════
+// The escape hatch, named so that a reader of the source sees it. Each
+// function here is a single operation that ignores the sandbox; the
+// enter/exit pair suspends it for a block of code.
+//
+// There is no destructor or defer in Mire, so enter() cannot be scoped to a
+// block — if the code between enter and exit returns early, the scope stays
+// open. That is why the per-operation functions below are the better tool
+// whenever one call is all you need, and why enter/exit is documented as
+// something to keep as short as possible.
+//
+// The namespace is `unrestricted` rather than `unsafe` because `unsafe` is a
+// reserved word in the parser. Do not rename it back; the name has to keep
+// reading as a warning at the call site.
+pub fn unrestricted: () {
+    // Suspends the policy for the calling thread. Every nested call must be
+    // matched by an exit, or the hole stays open for the rest of the thread.
+    // Returns the previous depth.
+    pub fn enter: () :i64 {
+        set was = pal_sbx_unsafe_depth()
+        use pal_sbx_set_unsafe(was + 1)
+        return was
+    }
+
+    // Narrows the policy back by one level. A depth that is already zero stays
+    // zero rather than wrapping, so an unbalanced exit cannot invert the
+    // check into "deny everything except what is permitted".
+    pub fn exit: () :i64 {
+        set was = pal_sbx_unsafe_depth()
+        if was > 0 {
+            use pal_sbx_set_unsafe(was - 1)
+        }
+        return was
+    }
+
+    // fs::read with the sandbox suspended for the duration of the call.
+    pub fn read: (path :&str) :str {
+        set was = fs::unrestricted::enter()
+        set out = rt_fs_read_bytes(path)
+        use pal_sbx_set_unsafe(was)
+        return out
+    }
+
+    // fs::exists with the sandbox suspended.
+    pub fn exists: (path :&str) :bool {
+        set was = fs::unrestricted::enter()
+        set out = pal_fs_exists(path)
+        use pal_sbx_set_unsafe(was)
+        return out
+    }
+
+    // fs::is_file with the sandbox suspended.
+    pub fn is_file: (path :&str) :bool {
+        set was = fs::unrestricted::enter()
+        set out = pal_fs_is_file(path)
+        use pal_sbx_set_unsafe(was)
+        return out
+    }
+
+    // Creates one directory, with parents NOT created, with the sandbox
+    // suspended. For fs::dir::create_all, which the sandbox already permits
+    // inside the root.
+    pub fn mkdir: (path :&str) :bool {
+        set was = fs::unrestricted::enter()
+        set out = pal_fs_mkdir(path)
+        use pal_sbx_set_unsafe(was)
+        return out
+    }
+
+    // Removes a single entry with the sandbox suspended. Symlinks are
+    // unlinked, never followed. Use fs::remove_all for recursion, and note
+    // that it composes pal_root_remove under an already-open root, so it does
+    // not need the escape hatch to work inside the sandbox.
+    pub fn remove: (path :&str) :bool {
+        set was = fs::unrestricted::enter()
+        set out = pal_fs_remove(path)
+        use pal_sbx_set_unsafe(was)
+        return out
+    }
+
+    // Changes a path's mode with the sandbox suspended.
+    pub fn chmod: (path :&str, mode :&str) :bool {
+        set was = fs::unrestricted::enter()
+        set out = pal_fs_chmod(path, mode)
+        use pal_sbx_set_unsafe(was)
+        return out
     }
 }

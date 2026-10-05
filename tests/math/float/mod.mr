@@ -141,20 +141,10 @@ pub fn rounding_leaves_nan_and_infinity_alone: () :bool {
     return true
 }
 
-// A large finite f64, built by repeated doubling. Mire's lexer has no
-// scientific-notation float literal, so 1.0e308 cannot be written directly and
-// the largest magnitudes have to be reached arithmetically. 2^1023 is the
-// largest power of two that is still finite, so it stands in for the whole
-// "too big to decompose" region without risking an infinity.
-fn large_finite: () :f64 {
-    set x = 1.0 :f64 mut
-    set i = 0 :i64 mut
-    while i < 1023 {
-        set x = x * 2.0
-        set i = i + 1
-    }
-    return x
-}
+// A large finite f64. 2^1023 is the largest power of two that is still finite,
+// so it stands in for the whole "too big to decompose" region without risking an
+// infinity.
+fn large_finite: () :f64 { return 8.98846567431158e307 }
 
 @[test]
 pub fn rounding_passes_through_magnitudes_at_or_above_2_52: () :bool {
@@ -257,7 +247,7 @@ pub fn toBits_preserves_the_signs_that_arithmetic_would_lose: () :bool {
 @[test]
 pub fn ulp_is_a_power_of_two_and_grows_with_the_magnitude: () :bool {
     // ULP at 1.0 is 2^-52, the machine epsilon.
-    if math::float::ulp(1.0) != 0.0000000000000002220446049250313 { return false }
+    if math::float::ulp(1.0) != 2.220446049250313e-16 { return false }
     // Every normal magnitude has a ULP that is an exact power of two, and it
     // doubles as the binade doubles. 2.0's gap is twice 1.0's.
     if math::float::ulp(2.0) != math::float::ulp(1.0) * 2.0 { return false }
@@ -282,7 +272,7 @@ pub fn ulp_handles_zero_subnormal_nan_and_infinity: () :bool {
 
 @[test]
 pub fn epsilon_is_two_to_the_minus_52: () :bool {
-    if math::float::epsilon() != 0.0000000000000002220446049250313 { return false }
+    if math::float::epsilon() != 2.220446049250313e-16 { return false }
     // 1.0 + epsilon must be strictly greater than 1.0, which is the whole
     // reason the constant exists.
     if 1.0 + math::float::epsilon() <= 1.0 { return false }

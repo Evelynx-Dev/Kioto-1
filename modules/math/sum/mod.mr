@@ -1,0 +1,140 @@
+// Kioto 3.0.0 - math::sum.
+//
+// List reductions over f64 vectors, where the accuracy of the reduction is the
+// whole point.
+//
+// Public symbols (4):
+//   fsum prod sumprod dist
+//
+// This module exists because summing floats naively is wrong in a way summing
+// integers is not. math::sum at the root tier adds a vec[i64] left to right and
+// the answer is exact, because every partial sum is an integer that cannot
+// overflow. Add a vec[f64] the same way and each step rounds: 1e16 + 1e16 + ... +
+// (-1e16) + (-1e16) is 0 in exact arithmetic, but walking it left to right gives
+// 1e16, then 2e16, ... and every -1e16 is swallowed by the running total. The
+// result depends on the order, not just the values. A reduction whose answer
+// moves when you reorder the input is not a sum, so this module keeps the
+// running compensation instead of the running total.
+//
+// fsum is Neumaier summation, also called improved Kahan: the total and the
+// rounding error of the total are accumulated separately, and only combined once
+// at the end. Every step recovers the low-order bits the addition just threw
+// away, so the answer is the correctly rounded sum of the exact values for any
+// order, up to one final rounding. It is not free — roughly four operations per
+// element instead of one — which is why it is opt-in rather than a replacement
+// for the root helper.
+//
+// The other three are plain folds. prod walks the list multiplying into a start
+// value, and sumprod and dist pair two element-wise. What they share is the
+// decision about mismatched lengths: sumprod and dist walk the shorter of the two
+// lists rather than trusting the caller, because a dot product over the overlap
+// of two vectors is a well-defined answer and a bounds violation on the longer
+// one is not a useful one. The empty overlap sums to 0.0, so dist returns 0.0
+// for two empty lists and for two lists that share no length at all.
+//
+// Storage note. A vec[f64] keeps each double in an eight byte slot, but the slot
+// holds the double's bits, and the runtime's typed accessors only read i64 or
+// str slots. That is why at_f64 below goes through rt_vecs_get_i64 and bits::f64
+// instead of the at operator: at works on a vector value, and every parameter
+// here is a reference, and references to a vector are not indexable. Reading a
+// list of doubles is the single most common thing this module does, so it gets
+// the one accessor rather than repeating the two step conversion at each site.
+
+load mire::vec
+
+// Reading the double in a slot: the getter returns the raw bits, bits::f64
+// reinterprets them. The list arrives as &anything rather than &vec[f64] because
+// that is how the runtime's own vec::len types an opaque vector pointer, and
+// declaring it as &vec[f64] makes the call site cast a pointer to i64 and fail.
+// vec::get::i64 is no use here either: it is typed &vec[i64] and rejects a float
+// list outright.
+extern fn rt_vecs_get_i64: (list :&anything, index :i64) :i64 lib "c"
+extern fn rt_math_sqrt: (value :f64) :f64 lib "c"
+
+// ── fsum ───────────────────────────────────────────────────────
+
+// The compensated sum: exact to the last bit, for any input order.
+pub fn fsum: (list :&vec[f64]) :f64 {
+    set total = 0.0 :f64 mut
+    set lost = 0.0 :f64 mut
+    set i = 0 :i64 mut
+    while i < vec::len(list) {
+        set x = at_f64(list, i)
+        // total + x, with the rounding error of that single addition recovered.
+        set t = total + x
+        if magnitude(total) >= magnitude(x) {
+            set lost = lost + ((total - t) + x)
+        } else {
+            set lost = lost + ((x - t) + total)
+        }
+        set total = t
+        set i = i + 1
+    }
+    // The low order bits are only folded in once, here.
+    return total + lost
+}
+
+// ── prod ───────────────────────────────────────────────────────
+
+// start multiplied by every element, left to right.
+pub fn prod: (list :&vec[f64], start :f64) :f64 {
+    set out = start :f64 mut
+    set i = 0 :i64 mut
+    while i < vec::len(list) {
+        set out = out * at_f64(list, i)
+        set i = i + 1
+    }
+    return out
+}
+
+// ── sumprod ────────────────────────────────────────────────────
+
+// The dot product, over the shorter of the two lists.
+pub fn sumprod: (p :&vec[f64], q :&vec[f64]) :f64 {
+    set out = 0.0 :f64 mut
+    set i = 0 :i64 mut
+    set n = shared_len(p, q)
+    while i < n {
+        set term = at_f64(p, i) * at_f64(q, i)
+        set out = out + term
+        set i = i + 1
+    }
+    return out
+}
+
+// ── dist ───────────────────────────────────────────────────────
+
+// The Euclidean distance, over the shorter of the two lists.
+pub fn dist: (p :&vec[f64], q :&vec[f64]) :f64 {
+    set total = 0.0 :f64 mut
+    set i = 0 :i64 mut
+    set n = shared_len(p, q)
+    while i < n {
+        set d = at_f64(p, i) - at_f64(q, i)
+        set total = total + d * d
+        set i = i + 1
+    }
+    return rt_math_sqrt(total)
+}
+
+// ── internals ──────────────────────────────────────────────────
+
+// The double stored in a slot, recovered from its bits.
+fn at_f64: (list :&anything, index :i64) :f64 {
+    return bits::f64(rt_vecs_get_i64(list, index))
+}
+
+// |x|, written out because the root helper is a sibling namespace and calling it
+// from here would be a qualified call into a module this one does not load.
+fn magnitude: (x :f64) :f64 {
+    if x >= 0.0 { return x }
+    return 0.0 - x
+}
+
+// How many element pairs the two lists actually have.
+fn shared_len: (p :&vec[f64], q :&vec[f64]) :i64 {
+    set lp = vec::len(p) :i64 mut
+    set lq = vec::len(q) :i64 mut
+    if lq < lp { return lq }
+    return lp
+}

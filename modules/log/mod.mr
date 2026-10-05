@@ -2,14 +2,19 @@ module log
 
 extern fn rt_string_concat: (left :&str, right :&str) :str lib "c"
 
+// Writes msg to stdout behind an [INFO] prefix. There is no level filter and
+// no timestamp: a log line is a line, and the prefix is the whole protocol.
 pub fn info: (msg :&str) {
     use dasu(rt_string_concat("[INFO] ", msg))
 }
 
+// Writes msg to stdout behind a [WARN] prefix. See log::info.
 pub fn warn: (msg :&str) {
     use dasu(rt_string_concat("[WARN] ", msg))
 }
 
+// Writes msg to stdout behind an [ERROR] prefix. Note that it goes to
+// stdout, not stderr, so it stays in order with the lines around it.
 pub fn error: (msg :&str) {
     use dasu(rt_string_concat("[ERROR] ", msg))
 }

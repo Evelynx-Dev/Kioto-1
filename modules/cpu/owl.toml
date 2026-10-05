@@ -3,6 +3,7 @@ name = "cpu"
 entry = "mod.mr"
 
 [exports]
+mod = "mod.mr"
 time    = "time.mr"
 elapsed = "elapsed.mr"
 freq    = "freq.mr"

@@ -3,6 +3,7 @@ name = "crypto"
 entry = "mod.mr"
 
 [exports]
+mod = "mod.mr"
 hash   = "hash/mod.mr"
 encode = "encode/mod.mr"
 random = "random/mod.mr"
